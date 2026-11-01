@@ -8,124 +8,106 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-/* Misma familia visual que «CNN a la vista»: columna de lectura con laboratorios más anchos; una frase seguida capa por capa. */
+/* Como el Transformer Explainer: arriba la entrada y los controles, al medio un único diagrama que se lee de izquierda a derecha
+   (embedding → Q, K, V → atención → MLP → probabilidades), abajo la explicación. Misma paleta que «CNN a la vista». */
 :root{
   --bg:#fbfafc; --surface:#ffffff; --sunk:#f2eff7; --line:#e2dcea;
   --fg:#1b1f3b; --muted:#666a85;
   --accent:#6a3fa0; --accent-soft:rgba(106,63,160,.13);
-  --amber:#c9851c; --amber-soft:rgba(201,133,28,.16); --ok:#1f8a7e; --bad:#c94e33;
+  --amber:#c9851c; --amber-soft:rgba(201,133,28,.16); --neg:#c94e33;
+  --q:#3f6fb5; --k:#c9851c; --v:#1f8a7e;
   --display:"Source Serif 4", Cambria, Georgia, serif;
   --body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
   --mono:"IBM Plex Mono", ui-monospace, Consolas, monospace;
   color-scheme:light;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#15131c; --surface:#1d1a27; --sunk:#252134; --line:#363048;
-  --fg:#ece9f3; --muted:#a6a2b8;
-  --accent:#b18ae6; --accent-soft:rgba(177,138,230,.18);
-  --amber:#e6a94a; --amber-soft:rgba(230,169,74,.2); --ok:#4cc2b2; --bad:#ec7f63; color-scheme:dark}}
+  --bg:#15131c; --surface:#1d1a27; --sunk:#252134; --line:#363048; --fg:#ece9f3; --muted:#a6a2b8;
+  --accent:#b18ae6; --accent-soft:rgba(177,138,230,.18); --amber:#e6a94a; --amber-soft:rgba(230,169,74,.2); --neg:#ec7f63;
+  --q:#7fa8e6; --k:#e6a94a; --v:#4cc2b2; color-scheme:dark}}
 :root[data-theme="dark"]{
-  --bg:#15131c; --surface:#1d1a27; --sunk:#252134; --line:#363048;
-  --fg:#ece9f3; --muted:#a6a2b8;
-  --accent:#b18ae6; --accent-soft:rgba(177,138,230,.18);
-  --amber:#e6a94a; --amber-soft:rgba(230,169,74,.2); --ok:#4cc2b2; --bad:#ec7f63; color-scheme:dark}
+  --bg:#15131c; --surface:#1d1a27; --sunk:#252134; --line:#363048; --fg:#ece9f3; --muted:#a6a2b8;
+  --accent:#b18ae6; --accent-soft:rgba(177,138,230,.18); --amber:#e6a94a; --amber-soft:rgba(230,169,74,.2); --neg:#ec7f63;
+  --q:#7fa8e6; --k:#e6a94a; --v:#4cc2b2; color-scheme:dark}
 *{box-sizing:border-box}
-body{background:var(--bg);color:var(--fg);font:16px/1.6 var(--body);margin:0}
-.wrap{max-width:1120px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 64px}
-.prose{max-width:68ch}
-h1,h2,h3{font-family:var(--display);text-wrap:balance;line-height:1.2;margin:0}
-h1{font-size:clamp(2rem,5vw,3rem);font-weight:700}
-h2{font-size:clamp(1.5rem,3.4vw,2rem);font-weight:700}
+body{background:var(--bg);color:var(--fg);font:15px/1.55 var(--body);margin:0}
+.wrap{max-width:1600px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:18px 64px}
+h1,h2,h3{font-family:var(--display);line-height:1.2;margin:0;text-wrap:balance}
+h1{font-size:1.6rem;font-weight:700}
+h2{font-size:1.45rem;font-weight:700}
 p{margin:0}
 a{color:var(--accent)}
-.stack{display:flex;flex-direction:column;gap:12px}
-.eyebrow{font:500 .78rem/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--amber)}
-.lead{font-size:1.12rem;color:var(--muted)}
-.small{font-size:.88rem;color:var(--muted)}
-header.top{display:flex;flex-direction:column;gap:14px;padding-block:12px 28px;border-bottom:1px solid var(--line)}
-.tl{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
-.tl a{display:flex;gap:8px;align-items:baseline;text-decoration:none;color:var(--fg);background:var(--sunk);border:1px solid var(--line);padding:6px 12px;border-radius:999px;font-size:.88rem}
-.tl a b{font:500 .85rem var(--mono);color:var(--accent)}
-.tl a:hover,.tl a:focus-visible{border-color:var(--accent);outline:none}
-section{display:flex;flex-direction:column;gap:18px;padding-block:44px 8px}
-.step{font:500 .85rem var(--mono);color:var(--accent)}
-.lab{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:16px;min-width:0}
-.panel{display:flex;flex-direction:column;gap:8px;min-width:0}
-.panel h3,.lbl{font:600 .78rem var(--body);text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
-.dims{font:500 .76rem var(--mono);color:var(--amber);font-variant-numeric:tabular-nums}
-.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-button{font:500 .9rem var(--body);border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:8px;padding:7px 12px;cursor:pointer}
-button:hover{border-color:var(--accent)}
+.small{font-size:.85rem;color:var(--muted)}
+.lbl{font:600 .72rem var(--body);text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+button,select{font:500 .88rem var(--body);border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:8px;padding:6px 11px;cursor:pointer}
+button:hover,select:hover{border-color:var(--accent)}
 button.primary{background:var(--accent);color:var(--bg);border-color:var(--accent)}
 button:disabled{opacity:.5;cursor:default}
-button:focus-visible,textarea:focus-visible,input:focus-visible,canvas:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-textarea{font:500 1rem var(--mono);width:100%;border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:var(--surface);color:var(--fg);resize:vertical}
-input[type=range]{width:100%;accent-color:var(--accent)}
-canvas{display:block;image-rendering:pixelated;max-width:100%;border-radius:4px;background:var(--sunk)}
-.carga{background:var(--amber-soft);border-radius:10px;padding:12px 14px;font-size:.95rem}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+input[type=text]{font:500 1rem var(--mono);border:1px solid var(--line);border-radius:8px;padding:8px 11px;background:var(--surface);color:var(--fg);width:100%;min-width:0}
+input[type=range]{accent-color:var(--accent);width:140px}
+
+/* barra superior */
+.top{display:flex;flex-direction:column;gap:12px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.titulo{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:baseline}
+.titulo .eyebrow{font:500 .74rem var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--amber)}
+.controles{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap:10px;align-items:center}
+@media (max-width:900px){.controles{grid-template-columns:minmax(0,1fr)}}
+.temp{display:flex;gap:8px;align-items:center;font:500 .85rem var(--mono)}
+.carga{background:var(--amber-soft);border-radius:8px;padding:8px 12px;font-size:.9rem}
 .carga[hidden]{display:none}
 
-/* ejemplos y tokens */
-.ejemplos{display:flex;flex-wrap:wrap;gap:6px}
-.ejemplos button{font-size:.82rem;padding:5px 10px;max-width:100%;text-align:left}
-.ejemplos button.sel{background:var(--accent-soft);border-color:var(--accent)}
-.toks{display:flex;flex-wrap:wrap;gap:4px 3px;font:500 .9rem/1.4 var(--mono);align-items:baseline}
-.tk{border-radius:5px;padding:2px 5px;white-space:pre;background:var(--sunk);border:1px solid var(--line)}
-.tk:nth-child(even){background:var(--accent-soft)}
-.tk .id{display:block;font-size:.6rem;color:var(--muted);text-align:center}
-.tk.nuevo{background:var(--amber-soft)}
-
-/* la red de un vistazo */
-.netbox{overflow-x:auto;min-width:0}
-.net{display:grid;grid-template-columns:minmax(120px,1fr) repeat(8,auto) minmax(210px,1.5fr);gap:10px;align-items:start;min-width:1040px}
-.layer{display:flex;flex-direction:column;gap:6px;min-width:0}
-.heads16{display:grid;grid-template-columns:repeat(4,30px);gap:3px}
-.head{padding:0;border:0;background:none;line-height:0;border-radius:3px;cursor:pointer}
-.head canvas{width:30px;height:30px;border-radius:3px}
-.head.sel{outline:2px solid var(--amber);outline-offset:1px}
-.head:focus-visible{outline:2px solid var(--accent)}
-.tipo{font:500 .68rem var(--mono);color:var(--muted)}
-.lista{display:flex;flex-direction:column;gap:2px;font:500 .8rem var(--mono)}
-.lista span{white-space:pre;overflow:hidden;text-overflow:ellipsis}
-.bars{display:flex;flex-direction:column;gap:4px}
-.bar{display:grid;grid-template-columns:minmax(0,6.5rem) minmax(0,1fr) 3.4rem;gap:8px;align-items:center;font:500 .82rem var(--mono);font-variant-numeric:tabular-nums}
+/* el diagrama */
+.barra2{display:flex;flex-wrap:wrap;gap:8px 22px;align-items:center;padding-top:12px}
+.vista{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:start}
+.vista>aside{margin-top:14px}
+@media (max-width:760px){.vista{grid-template-columns:minmax(0,1fr)}}
+.diagrama{overflow-x:auto;padding-block:14px 6px;min-width:0}
+.flujo{display:flex;gap:4px;align-items:flex-start;width:max-content}
+.col{display:flex;flex-direction:column;gap:4px;align-items:flex-start;flex:0 0 auto}
+.grupo{border:1px solid var(--line);border-radius:12px;padding:10px;background:var(--surface);display:flex;flex-direction:column;gap:8px}
+.grupo>.cab{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.grupo>.cab h3{font:600 .8rem var(--body);text-transform:uppercase;letter-spacing:.06em;color:var(--fg)}
+.nav{display:flex;gap:4px;align-items:center;font:500 .8rem var(--mono)}
+.nav button{padding:2px 8px;font:500 .85rem var(--mono)}
+.fila{display:flex;gap:6px;align-items:flex-start}
+.mat{display:flex;flex-direction:column;gap:3px;position:relative}
+.mat .t{font:600 .7rem var(--mono);white-space:nowrap}
+.mat .d{font:500 .64rem var(--mono);color:var(--muted);white-space:nowrap}
+.mat .cv{position:relative;line-height:0}
+.mat canvas{display:block;image-rendering:pixelated;border-radius:3px;background:var(--sunk);cursor:crosshair}
+.hl{position:absolute;left:-2px;right:-2px;border:1.5px solid var(--fg);border-radius:2px;pointer-events:none}
+.hl[hidden]{display:none}
+.hlc{position:absolute;border:2px solid var(--fg);pointer-events:none}
+.hlc[hidden]{display:none}
+.op{align-self:center;font:500 .7rem var(--mono);color:var(--muted);text-align:center;padding-inline:2px;white-space:nowrap}
+.q .t{color:var(--q)} .k .t{color:var(--k)} .v .t{color:var(--v)}
+.toks{display:flex;flex-direction:column;font:500 .78rem var(--mono)}
+.toks span{white-space:pre;overflow:hidden;text-overflow:ellipsis;max-width:6.5rem;cursor:pointer;padding-inline:4px;border-radius:3px;display:flex;align-items:center}
+.toks span.on{background:var(--accent-soft)}
+.bars{display:flex;flex-direction:column;gap:3px;width:210px}
+.bar{display:grid;grid-template-columns:minmax(0,5.5rem) minmax(0,1fr) 3.2rem;gap:6px;align-items:center;font:500 .8rem var(--mono);font-variant-numeric:tabular-nums}
 .bar b{white-space:pre;overflow:hidden;text-overflow:ellipsis}
-.bar i{display:block;height:11px;border-radius:3px;background:var(--line);min-width:2px}
+.bar i{display:block;height:10px;border-radius:3px;background:var(--line);min-width:2px}
 .bar.top i{background:var(--accent)}
+.bar.elegido b{color:var(--amber)}
 .bar span:last-child{text-align:right}
-@media (max-width:760px){
-  .net{grid-template-columns:minmax(0,1fr);min-width:0}
-  .heads16{grid-template-columns:repeat(8,30px)}
-}
 
-/* atención por dentro */
-.chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-.chips .grp{font:600 .74rem var(--body);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-right:4px}
-.chips button{padding:4px 9px;font:500 .82rem var(--mono)}
-.chips button.sel{background:var(--accent-soft);border-color:var(--accent)}
-.duo{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px}
-@media (max-width:820px){.duo{grid-template-columns:minmax(0,1fr)}}
-.matriz{display:grid;gap:1px;font:500 .62rem var(--mono);overflow-x:auto;max-width:100%}
-.matriz .c{width:100%;aspect-ratio:1/1;border-radius:2px;cursor:pointer;min-width:10px}
-.matriz .rl{white-space:pre;text-align:right;padding-right:4px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;max-width:7rem}
-.matriz .rl.sel{color:var(--amber);font-weight:600}
-.matbox{overflow-x:auto;min-width:0}
-.chain{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font:500 .8rem var(--mono)}
-.chain .n{background:var(--sunk);border:1px solid var(--line);border-radius:8px;padding:5px 9px}
-.chain .n.on{border-color:var(--accent);background:var(--accent-soft)}
-.chain .o{color:var(--muted)}
-.tablebox{overflow-x:auto;min-width:0}
-table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums;font-size:.86rem}
-th,td{padding:5px 8px;text-align:right;border-bottom:1px solid var(--line);font-family:var(--mono)}
-th{font:600 .72rem var(--body);text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
-td:first-child,th:first-child{text-align:left;white-space:pre}
-td.pbar{width:34%;text-align:left}
-td.pbar i{display:block;height:10px;border-radius:3px;background:var(--accent);min-width:1px}
-tr.yo td{color:var(--amber);font-weight:600}
-.slider{display:grid;grid-template-columns:7rem minmax(0,1fr) 4rem;gap:10px;align-items:center}
-.slider output{font:500 .9rem var(--mono);text-align:right}
-@media (max-width:760px){.slider{grid-template-columns:minmax(0,1fr) 4rem}.slider label{grid-column:1/-1}}
-footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);font-size:.85rem;color:var(--muted);display:flex;flex-direction:column;gap:8px}
+/* detalle */
+.detalle{border:1px solid var(--line);border-radius:12px;background:var(--surface);padding:12px 14px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.vecs{display:grid;grid-template-columns:5.5rem repeat(16,minmax(2.6rem,1fr)) 5rem;gap:2px;font:500 .72rem var(--mono);font-variant-numeric:tabular-nums;overflow-x:auto}
+.vecs span{text-align:center;padding:3px 0;border-radius:3px}
+.vecs .r{text-align:left;font-weight:600;padding-left:2px}
+.vecs .s{font-weight:600}
+.leyenda{display:flex;gap:14px;flex-wrap:wrap;font-size:.8rem;color:var(--muted);align-items:center}
+.ramp{display:inline-block;width:110px;height:9px;border-radius:3px;vertical-align:0;margin-inline:5px}
+
+/* explicación */
+.expl{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-top:22px}
+.expl article{display:flex;flex-direction:column;gap:6px;max-width:62ch}
+.expl h2{font-size:1.15rem}
+.expl b.n{font:500 .8rem var(--mono);color:var(--accent);display:block}
+footer{margin-top:36px;padding-top:16px;border-top:1px solid var(--line);font-size:.84rem;color:var(--muted);display:flex;flex-direction:column;gap:6px;max-width:110ch}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -133,97 +115,97 @@ footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);font-si
 <span id="probe" hidden></span>
 <div class="wrap">
 <header class="top">
-  <span class="eyebrow">Introducción a la IA · Clase 2 · Modelos de lenguaje</span>
-  <h1>GPT a la vista</h1>
-  <p class="lead prose">Un modelo de lenguaje chico, TinyStories-8M, que aprendió a escribir cuentos infantiles en inglés leyendo unos dos millones de cuentos. Elegí un comienzo y seguilo por dentro: cómo se parte en tokens, qué mira cada cabeza de atención y cómo elige la palabra que sigue. Todo corre en tu navegador.</p>
-  <nav class="tl" aria-label="Secciones">
-    <a href="#vistazo"><b>1</b> La red de un vistazo</a>
-    <a href="#atencion"><b>2</b> La atención por dentro</a>
-    <a href="#softmax"><b>3</b> Softmax y temperatura</a>
-    <a href="#escribir"><b>4</b> Escribí tu cuento</a>
-  </nav>
+  <div class="titulo"><span class="eyebrow">Introducción a la IA · Clase 2</span><h1>GPT a la vista</h1><span class="small">TinyStories-8M: un GPT chico que escribe cuentos infantiles en inglés. Todo corre en tu navegador.</span></div>
+  <div class="controles">
+    <input type="text" id="texto" aria-label="Texto de entrada en inglés">
+    <select id="ejemplos" aria-label="Ejemplos"><option value="">Ejemplos…</option></select>
+    <label class="temp" for="temp">Temperatura <input type="range" id="temp" min="0.1" max="2" step="0.05" value="1"><output id="tempOut" for="temp">1,00</output></label>
+    <div style="display:flex;gap:6px"><button class="primary" id="btnGen">Generar</button><button id="btnDeshacer">Deshacer</button></div>
+  </div>
   <p class="carga" id="carga">Cargando el modelo… <span id="cargaPct">0 %</span>. La primera vez baja 38 MB; después queda guardado en el navegador.</p>
 </header>
 
-<section id="vistazo">
-  <div class="stack prose">
-    <span class="step">Paso 1</span>
-    <h2>La red de un vistazo</h2>
-    <p>El texto se parte en <b>tokens</b> y cada token entra a la red como una lista de 256 números, su embedding. Después pasa por 8 bloques. En cada bloque, 16 <b>cabezas de atención</b> deciden de qué tokens anteriores tomar información; cada cuadradito muestra el patrón de una cabeza (fila: el token que mira; columna: a quién mira). Al final, la red da una probabilidad para cada uno de los 50.257 tokens posibles.</p>
-    <p>Tocá cualquier cuadradito para abrirlo en el paso 2.</p>
-  </div>
-  <div class="lab">
-    <div class="panel">
-      <h3>Comienzos de cuentos</h3>
-      <div class="ejemplos" id="ejemplos" role="group" aria-label="Comienzos de cuentos"></div>
-      <label class="lbl" for="texto">Texto de entrada (en inglés)</label>
-      <textarea id="texto" rows="2"></textarea>
-      <div class="toks" id="tokens" aria-live="polite"></div>
-    </div>
-    <div class="netbox"><div class="net" id="net"></div></div>
-  </div>
-</section>
-
-<section id="atencion">
-  <div class="stack prose">
-    <span class="step">Paso 2</span>
-    <h2>La atención por dentro</h2>
-    <p>Cada token arma tres vectores a partir de su embedding: una <b>pregunta</b> (q), una <b>etiqueta</b> (k) y un <b>contenido</b> (v). Para decidir a quién mirar, compara su pregunta con la etiqueta de cada token anterior con un producto interno: cuanto más se parecen, más alto el puntaje. Softmax convierte esos puntajes en pesos que suman 1, y el token se lleva una mezcla de los contenidos, pesada por esos pesos.</p>
-    <p>Solo puede mirar hacia atrás: los tokens que todavía no llegaron quedan tapados por una máscara. Elegí una capa y una cabeza, y tocá un token de la izquierda para ver su cuenta.</p>
-  </div>
-  <div class="lab">
-    <div class="chips" id="chipsCapa" role="group" aria-label="Capa"></div>
-    <div class="chips" id="chipsCabeza" role="group" aria-label="Cabeza"></div>
-    <div class="duo">
-      <div class="panel">
-        <h3 id="matTitulo">Patrón de atención</h3>
-        <div class="matbox"><div class="matriz" id="matriz"></div></div>
-        <p class="small">Cada fila es un token; cada columna, un token anterior. Más oscuro, más peso.</p>
-      </div>
-      <div class="panel">
-        <h3 id="cuentaTitulo">La cuenta de un token</h3>
-        <div class="chain" aria-label="Pasos de la atención"><span class="n">q · k</span><span class="o">→</span><span class="n">máscara</span><span class="o">→</span><span class="n">softmax</span><span class="o">→</span><span class="n on">pesos</span><span class="o">→</span><span class="n">mezcla de v</span></div>
-        <div class="tablebox"><table><thead><tr><th>Mira a</th><th>puntaje q·k</th><th>peso</th><th style="text-align:left"></th></tr></thead><tbody id="cuenta"></tbody></table></div>
-        <p class="small" id="cuentaNota"></p>
-      </div>
+<div class="barra2">
+  <div class="nav"><span class="lbl">Bloque</span><button type="button" id="bPrev" aria-label="Bloque anterior">‹</button><span id="bTxt"></span><button type="button" id="bNext" aria-label="Bloque siguiente">›</button></div>
+  <div class="nav"><span class="lbl">Cabeza</span><button type="button" id="hPrev" aria-label="Cabeza anterior">‹</button><span id="hTxt"></span><button type="button" id="hNext" aria-label="Cabeza siguiente">›</button></div>
+</div>
+<div class="vista">
+<div class="diagrama"><div class="flujo" id="flujo">
+  <!-- entrada -->
+  <div class="grupo" id="gEntrada">
+    <div class="cab"><h3>Embedding</h3></div>
+    <div class="fila">
+      <div class="mat"><span class="t">Tokens</span><span class="d" id="dTok"></span><div class="toks" id="toks"></div></div>
+      <div class="mat" id="mEmb"><span class="t">token + posición</span><span class="d">256 números</span><div class="cv"><canvas></canvas><div class="hl" hidden></div></div></div>
     </div>
   </div>
-</section>
+  <span class="op">→</span>
+  <!-- bloque -->
+  <div class="grupo" id="gBloque">
+    <div class="cab"><h3 id="bloqueTit">Bloque transformer</h3></div>
+    <div class="fila">
+      <div class="col">
+        <span class="lbl">Atención de una cabeza</span>
+        <div class="fila">
+          <div class="col">
+            <div class="mat q" id="mQ"><span class="t">Q</span><span class="d">16 números</span><div class="cv"><canvas></canvas><div class="hl" hidden></div></div></div>
+          </div>
+          <div class="col">
+            <div class="mat k" id="mK"><span class="t">K</span><span class="d">16 números</span><div class="cv"><canvas></canvas><div class="hl" hidden></div></div></div>
+          </div>
+          <span class="op">Q·Kᵀ<br>→</span>
+          <div class="mat" id="mS"><span class="t">puntajes + máscara</span><span class="d">lo tapado queda pálido</span><div class="cv"><canvas></canvas><div class="hl" hidden></div><div class="hlc" hidden></div></div></div>
+          <span class="op">softmax<br>→</span>
+          <div class="mat" id="mP"><span class="t">pesos</span><span class="d">cada fila suma 1</span><div class="cv"><canvas></canvas><div class="hl" hidden></div><div class="hlc" hidden></div></div></div>
+          <span class="op">× V<br>→</span>
+          <div class="col">
+            <div class="mat v" id="mV"><span class="t">V</span><span class="d">16 números</span><div class="cv"><canvas></canvas><div class="hl" hidden></div></div></div>
+          </div>
+          <span class="op">=</span>
+          <div class="mat" id="mY"><span class="t">salida</span><span class="d">de la cabeza</span><div class="cv"><canvas></canvas><div class="hl" hidden></div></div></div>
+        </div>
+      </div>
+      <span class="op">16 cabezas<br>juntas<br>+ residuo<br>→</span>
+      <div class="mat" id="mR"><span class="t">con atención</span><span class="d">256 números</span><div class="cv"><canvas></canvas><div class="hl" hidden></div></div></div>
+      <span class="op">MLP<br>→</span>
+      <div class="mat" id="mF"><span class="t">MLP oculta</span><span class="d">1.024 números</span><div class="cv"><canvas></canvas><div class="hl" hidden></div></div></div>
+      <span class="op">+ residuo<br>→</span>
+      <div class="mat" id="mO"><span class="t">salida</span><span class="d">del bloque</span><div class="cv"><canvas></canvas><div class="hl" hidden></div></div></div>
+    </div>
+  </div>
+  <span class="op">→ × 8<br>bloques<br>→</span>
+</div></div>
+  <!-- salida: siempre a la vista -->
+  <aside class="grupo" id="gSalida">
+    <div class="cab"><h3>Probabilidades</h3></div>
+    <span class="d small" id="dSal"></span>
+    <div class="bars" id="barras"></div>
+  </aside>
+</div>
 
-<section id="softmax">
-  <div class="stack prose">
-    <span class="step">Paso 3</span>
-    <h2>Softmax y temperatura</h2>
-    <p>Al final, la red da un puntaje (logit) a cada token posible. Softmax los convierte en probabilidades: exponencial, para que todo quede positivo, y división por la suma, para que todo sume 1. La <b>temperatura</b> divide los puntajes antes de softmax. Con temperatura baja gana casi siempre el favorito; con temperatura alta las opciones se emparejan y el texto se vuelve más sorpresivo.</p>
-  </div>
-  <div class="lab">
-    <div class="slider"><label for="temp">Temperatura</label><input type="range" id="temp" min="0.1" max="2" step="0.05" value="1"><output id="tempOut" for="temp">1,00</output></div>
-    <div class="tablebox"><table><thead><tr><th>Token</th><th>logit z</th><th>z ÷ temperatura</th><th>probabilidad</th><th style="text-align:left"></th></tr></thead><tbody id="tabla"></tbody></table></div>
-    <div class="row"><button class="primary" id="btnTop">Agregar el más probable</button><button id="btnSortear">Sortear uno</button><button id="btnDeshacer">Deshacer</button></div>
-  </div>
-</section>
+<div class="leyenda"><span>negativo</span><i class="ramp" id="rampDiv"></i><span>positivo</span><span style="width:12px"></span><span>0</span><i class="ramp" id="rampSeq"></i><span>1 (pesos)</span><span class="small">Pasá el mouse por un token o una fila para seguirlo por toda la red. Tocá una celda de los puntajes para ver la cuenta.</span></div>
 
-<section id="escribir">
-  <div class="stack prose">
-    <span class="step">Paso 4</span>
-    <h2>Escribí tu cuento</h2>
-    <p>Escribí un comienzo en el paso 1 y dejá que el modelo siga, un token por vez y con la temperatura del paso 3. Cada token nuevo vuelve a pasar por los 8 bloques. El cuento que se forma pasa a ser la entrada de toda la página.</p>
-  </div>
-  <div class="lab">
-    <div class="row"><button class="primary" id="btnSeguir">Seguir escribiendo</button><button id="btnParar" disabled>Parar</button></div>
-    <div class="toks" id="cuento"></div>
-    <p class="small">Con fondo ámbar, lo que agregó el modelo.</p>
-  </div>
-</section>
+<div class="detalle" id="detalle" style="margin-top:12px">
+  <span class="lbl" id="detTit">La cuenta de un puntaje</span>
+  <div class="vecs" id="vecs"></div>
+  <p class="small" id="detNota"></p>
+</div>
+
+<div class="expl">
+  <article><b class="n">1</b><h2>Tokens y embedding</h2><p>El texto se parte en tokens, pedazos de palabra de un vocabulario de 50.257. Cada token se cambia por una lista de 256 números aprendida durante el entrenamiento, su embedding, y se le suma otra lista que codifica su posición en la frase. Cada fila del diagrama es un token.</p></article>
+  <article><b class="n">2</b><h2>Q, K y V</h2><p>En cada bloque, cada token arma tres vectores multiplicando su embedding por tres matrices aprendidas: una <b style="color:var(--q)">pregunta</b> (Q), una <b style="color:var(--k)">etiqueta</b> (K) y un <b style="color:var(--v)">contenido</b> (V). Hay 16 cabezas y cada una usa 16 de los 256 números, así que cada cabeza puede buscar una cosa distinta.</p></article>
+  <article><b class="n">3</b><h2>Atención</h2><p>Para saber a quién mirar, cada token compara su pregunta con la etiqueta de cada token con un producto interno: el puntaje. La máscara tapa los tokens que vienen después, porque al escribir no se puede mirar el futuro. Softmax convierte cada fila en pesos que suman 1, y el token se lleva una mezcla de los contenidos.</p></article>
+  <article><b class="n">4</b><h2>MLP y residuo</h2><p>Las 16 cabezas se juntan y se suman a lo que el token traía (el residuo). Después cada token pasa solo por una red densa, el MLP: se expande a 1.024 números, pasa por una no linealidad y vuelve a 256. Ese resultado entra al bloque siguiente. Hay 8 bloques.</p></article>
+  <article><b class="n">5</b><h2>Probabilidades y temperatura</h2><p>Al final, el último token se compara con los 50.257 embeddings y cada comparación es un puntaje. Softmax los convierte en probabilidades. La temperatura divide los puntajes antes de softmax: baja, gana casi siempre el favorito; alta, el texto se vuelve más sorpresivo. «Generar» sortea un token con esas probabilidades y lo agrega.</p></article>
+</div>
 
 <footer>
-  <p><b>El modelo:</b> TinyStories-8M (Eldan y Li, «TinyStories: How Small Can Language Models Be and Still Speak Coherent English?», 2023), de la arquitectura GPT-Neo. Tiene 8 bloques, 16 cabezas de atención por bloque, embeddings de 256 números y 19,7 millones de parámetros, de los cuales 12,9 millones son la tabla de tokens. Se entrenó con <a href="https://huggingface.co/datasets/roneneldan/TinyStories" target="_blank" rel="noopener">TinyStories</a>, cuentos escritos por GPT-3.5 y GPT-4 con un vocabulario que entiende un chico de tres o cuatro años.</p>
-  <p>A diferencia de GPT-2, GPT-Neo no divide los puntajes de atención por la raíz de la dimensión, y la mitad de sus bloques solo mira los últimos 256 tokens. Acá el texto nunca pasa de 256 tokens, así que eso no cambia nada. Para ver un GPT más grande por dentro, el <a href="https://dimacio.github.io/transformer-explainer-es/" target="_blank" rel="noopener">Transformer Explainer en castellano</a>.</p>
+  <p><b>El modelo:</b> TinyStories-8M (Eldan y Li, «TinyStories: How Small Can Language Models Be and Still Speak Coherent English?», 2023), arquitectura GPT-Neo: 8 bloques, 16 cabezas, embeddings de 256 números y 19,7 millones de parámetros, de los cuales 12,9 millones son la tabla de tokens. Se entrenó con <a href="https://huggingface.co/datasets/roneneldan/TinyStories" target="_blank" rel="noopener">TinyStories</a>, cuentos escritos por GPT-3.5 y GPT-4 con palabras que entiende un chico de tres o cuatro años.</p>
+  <p>Diferencias con GPT-2: GPT-Neo no divide los puntajes por la raíz de la dimensión, y la mitad de sus bloques solo mira los últimos 256 tokens (acá el texto nunca llega a tanto). Inspirado en el <a href="https://poloclub.github.io/transformer-explainer/" target="_blank" rel="noopener">Transformer Explainer</a> (Cho y otros, 2024); su versión en castellano está en <a href="https://dimacio.github.io/transformer-explainer-es/" target="_blank" rel="noopener">dimacio.github.io/transformer-explainer-es</a>.</p>
 </footer>
 </div>
 
 <script>
-// si algo falla antes de terminar de cargar, mostrarlo en el cartel en vez de quedarse en 0 %
 function mostrarFalla(msg) { const c = document.getElementById('carga'); if (c && !c.hidden) c.textContent = 'No se pudo cargar el modelo: ' + msg + '. Probá recargar la página; si sigue, avisá qué navegador usás.'; }
 window.addEventListener('error', e => mostrarFalla(e.message || 'error de JavaScript'));
 window.addEventListener('unhandledrejection', e => mostrarFalla((e.reason && e.reason.message) || String(e.reason)));
@@ -232,16 +214,14 @@ window.addEventListener('unhandledrejection', e => mostrarFalla((e.reason && e.r
 <script>
 const EJEMPLOS = [
   "Once upon a time, there was a little ant. The ant liked to crawl around and",
-  "Once upon a time, there was a crane named Bob. Bob was a big bird with a long",
-  "One day, a little girl called Sarah went to the park. She saw some children there playing",
-  "Once upon a time, there was a little bear named Teddy. Teddy loved to play outside in the",
   "Tom and Sam went to the park. Tom saw a big",
   "Lily and her mom baked a cake. Lily said, \"Mom, can I",
   "The cat was very hungry. She looked for",
   "Once upon a time, there was a little car named Red. Red loved to travel and see new",
+  "One day, a little girl called Sarah went to the park. She saw some children there playing",
 ];
-const MAXT = 120;
-const S = { capa: 0, cabeza: 0, fila: null, R: null, ids: [], hist: [], nuevos: 0, generando: false };
+const MAXT = 60;
+const S = { capa: 0, cabeza: 0, fila: null, celda: null, R: null, ids: [], hist: [], elegido: null };
 const $ = id => document.getElementById(id);
 const NF2 = new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const pct = v => new Intl.NumberFormat('es-AR', { style: 'percent', maximumFractionDigits: 1 }).format(v);
@@ -249,146 +229,150 @@ const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
 const ver = s => s.replace(/\n/g, '↵').replace(/^ /, '·');
 const tokStr = i => Tokenizador.decode([i]);
 
-/* colores desde los tokens del tema */
+/* colores */
 const probe = $('probe');
 function tok(n) { probe.style.color = `var(${n})`; return getComputedStyle(probe).color.match(/[\d.]+/g).slice(0, 3).map(Number); }
 let C = {};
-const leerColores = () => { C = { surface: tok('--surface'), sunk: tok('--sunk'), accent: tok('--accent'), amber: tok('--amber'), line: tok('--line') }; };
-const mezcla = (a, b, t) => `rgb(${a.map((v, i) => Math.round(v + (b[i] - v) * t)).join(',')})`;
-const pesosFila = p => { let mx = -Infinity; for (const v of p) if (v > mx) mx = v; const e = Array.from(p, v => Math.exp(v - mx)); const s = e.reduce((a, b) => a + b, 0); return e.map(v => v / s); };
+const leerColores = () => { C = { surface: tok('--surface'), sunk: tok('--sunk'), accent: tok('--accent'), neg: tok('--neg'), fg: tok('--fg') }; };
+const mixA = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
+function colDiv(v, s) { const t = Math.max(-1, Math.min(1, v / (s || 1))); return t >= 0 ? mixA(C.surface, C.accent, t) : mixA(C.surface, C.neg, -t); }
+function colSeq(v) { return mixA(C.surface, C.accent, Math.min(1, Math.sqrt(Math.max(0, v)))); }
+const css = a => `rgb(${a.map(Math.round).join(',')})`;
+function pesosFila(p) { let mx = -Infinity; for (const v of p) if (v > mx) mx = v; const e = Array.from(p, v => Math.exp(v - mx)); const s = e.reduce((a, b) => a + b, 0); return e.map(v => v / s); }
+function escala(filas) { const a = []; for (const f of filas) for (const v of f) a.push(Math.abs(v)); a.sort((x, y) => x - y); return a[Math.floor(a.length * 0.98)] || 1; }
+
+/* dibuja una matriz de T filas en un canvas; alto de fila común a todo el diagrama */
+let FILA = 16;
+function pintar(id, filas, ncol, modo, anchoCss, mascara) {
+  const box = $(id), cv = box.querySelector('canvas'), T = filas.length;
+  cv.width = ncol; cv.height = T; cv.style.width = anchoCss + 'px'; cv.style.height = (T * FILA) + 'px';
+  const ctx = cv.getContext('2d'), img = ctx.createImageData(ncol, T), s = modo === 'div' ? escala(filas) : 1;
+  for (let i = 0; i < T; i++) for (let j = 0; j < ncol; j++) {
+    let c;
+    if (mascara && j > i) c = mascara === 'suave' ? mixA(C.sunk, modo === 'seq' ? colSeq(filas[i][j]) : colDiv(filas[i][j], s), 0.22) : C.sunk;
+    else if (modo === 'seq') c = colSeq(filas[i][j]);
+    else c = colDiv(filas[i][j], s);
+    const k = (i * ncol + j) * 4; img.data[k] = c[0]; img.data[k + 1] = c[1]; img.data[k + 2] = c[2]; img.data[k + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  box._T = T; box._n = ncol;
+}
 
 /* ---------- arranque ---------- */
-const ej = $('ejemplos');
-EJEMPLOS.forEach((e, i) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = e.length > 46 ? '…' + e.slice(-44) : e; b.title = e; b.addEventListener('click', () => { $('texto').value = e; S.hist = []; S.nuevos = 0; actualizar(); }); ej.appendChild(b); });
-$('texto').value = EJEMPLOS[0];
+EJEMPLOS.forEach(e => { const o = document.createElement('option'); o.value = e; o.textContent = e.length > 60 ? e.slice(0, 58) + '…' : e; $('ejemplos').appendChild(o); });
+$('ejemplos').addEventListener('change', e => { if (e.target.value) { $('texto').value = e.target.value; S.hist = []; S.elegido = null; actualizar(); } });
+$('texto').value = EJEMPLOS[1];
 leerColores();
-cargarModelo('modelo', (f, b, t) => { $('cargaPct').textContent = `${pct(f)} (${(b / 1e6).toFixed(1).replace('.', ',')} de ${(t / 1e6).toFixed(0)} MB)`; }).then(() => { $('carga').hidden = true; armarChips(); actualizar(); })
-  .catch(err => { $('carga').textContent = 'No se pudo cargar el modelo. Revisá la conexión y recargá la página. (' + err.message + ')'; });
-
+$('rampDiv').style.background = 'linear-gradient(90deg,var(--neg),var(--surface),var(--accent))';
+$('rampSeq').style.background = 'linear-gradient(90deg,var(--surface),var(--accent))';
+cargarModelo('modelo', (f, b, t) => { $('cargaPct').textContent = `${pct(f)} (${(b / 1e6).toFixed(1).replace('.', ',')} de ${(t / 1e6).toFixed(0)} MB)`; })
+  .then(() => { $('carga').hidden = true; actualizar(); })
+  .catch(err => mostrarFalla(err.message));
 let espera = null;
-$('texto').addEventListener('input', () => { S.hist = []; S.nuevos = 0; clearTimeout(espera); espera = setTimeout(actualizar, 250); });
+$('texto').addEventListener('input', () => { S.hist = []; S.elegido = null; clearTimeout(espera); espera = setTimeout(actualizar, 300); });
 
 function actualizar() {
   if (!Red.meta) return;
   let ids = Tokenizador.encode($('texto').value);
-  if (ids.length > MAXT) { ids = ids.slice(-MAXT); }
+  if (ids.length > MAXT) ids = ids.slice(-MAXT);
   S.ids = ids;
-  ej.querySelectorAll('button').forEach((b, i) => b.classList.toggle('sel', EJEMPLOS[i] === $('texto').value));
-  if (!ids.length) { $('tokens').innerHTML = ''; $('net').innerHTML = ''; $('matriz').innerHTML = ''; $('cuenta').innerHTML = ''; $('tabla').innerHTML = ''; return; }
+  if (!ids.length) return;
   S.R = correr(ids);
-  if (S.fila === null || S.fila >= ids.length) S.fila = ids.length - 1;
-  pintarTokens(); pintarRed(); pintarAtencion(); pintarSoftmax(); pintarCuento();
+  FILA = Math.max(7, Math.min(14, Math.floor(400 / ids.length)));
+  if (S.fila !== null && S.fila >= ids.length) S.fila = null;
+  S.celda = null;
+  pintarTodo();
 }
 
-/* ---------- paso 1 ---------- */
-function pintarTokens() {
-  $('tokens').innerHTML = S.ids.map(i => `<span class="tk">${esc(ver(tokStr(i)))}<span class="id">${i}</span></span>`).join('');
-}
-function dibujarMatriz(cv, l, h, T) {
-  cv.width = T; cv.height = T; const ctx = cv.getContext('2d'), img = ctx.createImageData(T, T);
-  for (let i = 0; i < T; i++) {
-    const w = pesosFila(S.R.filas[i][l][h]);
-    for (let j = 0; j < T; j++) {
-      const col = j <= i ? mezcla(C.surface, C.accent, Math.sqrt(w[j])) : `rgb(${C.sunk.join(',')})`;
-      const m = col.match(/\d+/g).map(Number), k = (i * T + j) * 4;
-      img.data[k] = m[0]; img.data[k + 1] = m[1]; img.data[k + 2] = m[2]; img.data[k + 3] = 255;
-    }
-  }
-  ctx.putImageData(img, 0, 0);
-}
-function pintarRed() {
-  const T = S.ids.length, NL = Red.meta.capas, NH = Red.meta.cabezas;
-  const net = $('net');
-  let html = `<div class="layer"><span class="lbl">Entrada</span><span class="dims">${T} tokens</span><div class="lista">${S.ids.map(i => `<span>${esc(ver(tokStr(i)))}</span>`).join('')}</div></div>`;
-  for (let l = 0; l < NL; l++) {
-    html += `<div class="layer"><span class="lbl">Bloque ${l + 1}</span><span class="tipo">${Red.meta.tipos[l] === 'global' ? 'mira todo' : 'mira cerca'}</span><div class="heads16">`;
-    for (let h = 0; h < NH; h++) html += `<button class="head" type="button" data-l="${l}" data-h="${h}" aria-label="Bloque ${l + 1}, cabeza ${h + 1}"><canvas></canvas></button>`;
-    html += `</div></div>`;
-  }
-  html += `<div class="layer"><span class="lbl">Próximo token</span><span class="dims">50.257 posibles</span><div class="bars" id="barras"></div></div>`;
-  net.innerHTML = html;
-  net.querySelectorAll('.head').forEach(b => { dibujarMatriz(b.querySelector('canvas'), +b.dataset.l, +b.dataset.h, T); b.classList.toggle('sel', +b.dataset.l === S.capa && +b.dataset.h === S.cabeza); });
-  const p = softmax(S.R.logits), top = topK(p, 10);
-  $('barras').innerHTML = top.map((i, k) => `<div class="bar${k === 0 ? ' top' : ''}"><b>${esc(ver(tokStr(i)))}</b><i style="width:${Math.max(.5, p[i] * 100)}%"></i><span>${pct(p[i])}</span></div>`).join('');
-}
-$('net').addEventListener('click', e => { const b = e.target.closest('.head'); if (!b) return; S.capa = +b.dataset.l; S.cabeza = +b.dataset.h; marcarCabeza(); pintarAtencion(); $('atencion').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); });
-function topK(p, k) { const idx = []; for (let i = 0; i < p.length; i++) { if (idx.length < k) { idx.push(i); idx.sort((a, b) => p[b] - p[a]); } else if (p[i] > p[idx[k - 1]]) { idx[k - 1] = i; idx.sort((a, b) => p[b] - p[a]); } } return idx; }
-
-/* ---------- paso 2 ---------- */
-function armarChips() {
-  const NL = Red.meta.capas, NH = Red.meta.cabezas;
-  $('chipsCapa').innerHTML = '<span class="grp">Bloque</span>' + [...Array(NL)].map((_, l) => `<button type="button" data-l="${l}">${l + 1}</button>`).join('');
-  $('chipsCabeza').innerHTML = '<span class="grp">Cabeza</span>' + [...Array(NH)].map((_, h) => `<button type="button" data-h="${h}">${h + 1}</button>`).join('');
-  $('chipsCapa').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.capa = +b.dataset.l; marcarCabeza(); pintarAtencion(); });
-  $('chipsCabeza').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.cabeza = +b.dataset.h; marcarCabeza(); pintarAtencion(); });
-}
-function marcarCabeza() {
-  document.querySelectorAll('#chipsCapa button').forEach(b => { const on = +b.dataset.l === S.capa; b.classList.toggle('sel', on); b.setAttribute('aria-pressed', String(on)); });
-  document.querySelectorAll('#chipsCabeza button').forEach(b => { const on = +b.dataset.h === S.cabeza; b.classList.toggle('sel', on); b.setAttribute('aria-pressed', String(on)); });
-  document.querySelectorAll('#net .head').forEach(b => b.classList.toggle('sel', +b.dataset.l === S.capa && +b.dataset.h === S.cabeza));
-}
-function pintarAtencion() {
-  if (!S.R) return; marcarCabeza();
-  const T = S.ids.length, l = S.capa, h = S.cabeza, m = $('matriz');
-  $('matTitulo').textContent = `Bloque ${l + 1}, cabeza ${h + 1}`;
-  m.style.gridTemplateColumns = `minmax(3rem,7rem) repeat(${T}, minmax(10px,1fr))`;
-  let html = '';
-  for (let i = 0; i < T; i++) {
-    const w = pesosFila(S.R.filas[i][l][h]);
-    html += `<span class="rl${i === S.fila ? ' sel' : ''}" data-i="${i}" title="${esc(tokStr(S.ids[i]))}">${esc(ver(tokStr(S.ids[i])))}</span>`;
-    for (let j = 0; j < T; j++) html += `<span class="c" data-i="${i}" style="background:${j <= i ? mezcla(C.surface, C.accent, Math.sqrt(w[j])) : `rgb(${C.sunk.join(',')})`}" title="${j <= i ? pct(w[j]) : 'tapado por la máscara'}"></span>`;
-  }
-  m.innerHTML = html;
-  pintarCuenta();
-}
-$('matriz').addEventListener('click', e => { const el = e.target.closest('[data-i]'); if (!el) return; S.fila = +el.dataset.i; pintarAtencion(); });
-function pintarCuenta() {
-  const i = S.fila, l = S.capa, h = S.cabeza, sc = S.R.filas[i][l][h], w = pesosFila(sc);
-  $('cuentaTitulo').textContent = `La cuenta de «${ver(tokStr(S.ids[i]))}» (token ${i + 1})`;
-  const orden = [...w.keys()].sort((a, b) => w[b] - w[a]);
-  $('cuenta').innerHTML = orden.map(j => `<tr class="${j === i ? 'yo' : ''}"><td>${esc(ver(tokStr(S.ids[j])))}${j === i ? ' (sí mismo)' : ''}</td><td>${NF2.format(sc[j])}</td><td>${pct(w[j])}</td><td class="pbar"><i style="width:${Math.max(.5, w[j] * 100)}%"></i></td></tr>`).join('');
-  const futuros = S.ids.length - 1 - i;
-  $('cuentaNota').textContent = `Puede mirar ${i + 1} token${i ? 's' : ''}. ${futuros ? `Los ${futuros} que vienen después quedan tapados por la máscara.` : 'Es el último token: de su cuenta sale la predicción.'} Los pesos son el softmax de los puntajes.`;
+function pintarTodo() {
+  const T = S.ids.length, reg = S.R.cache.reg, l = S.capa, h = S.cabeza, DH = 16, sl = a => Array.from(a.subarray ? a.subarray(h * DH, h * DH + DH) : a.slice(h * DH, h * DH + DH));
+  $('dTok').textContent = `${T} tokens`;
+  $('toks').innerHTML = S.ids.map((id, i) => `<span data-i="${i}" style="height:${FILA}px">${esc(ver(tokStr(id)))}</span>`).join('');
+  pintar('mEmb', reg.emb, 256, 'div', 90);
+  const L = reg.capas[l];
+  pintar('mQ', L.map(r => sl(r.q)), 16, 'div', 48);
+  pintar('mK', L.map(r => sl(r.k)), 16, 'div', 48);
+  pintar('mV', L.map(r => sl(r.v)), 16, 'div', 48);
+  const punt = S.R.filas.map(f => f[l][h]);
+  const sFull = punt.map((p, i) => Array.from({ length: T }, (_, j) => j <= i ? p[j] : 0));
+  const sEsc = escala(punt);
+  // puntajes completos: el triángulo de arriba también se calcula (q_i · k_j), para mostrar qué tapa la máscara
+  const sTodo = [...Array(T)].map((_, i) => [...Array(T)].map((_, j) => { let s = 0; const q = L[i].q, k = L[j].k; for (let d = 0; d < DH; d++) s += q[h * DH + d] * k[h * DH + d]; return s; }));
+  const lado = Math.min(240, Math.max(120, T * FILA));
+  pintar('mS', sTodo, T, 'div', T * FILA, 'suave');
+  const pesos = punt.map(p => pesosFila(p));
+  pintar('mP', pesos.map((w, i) => Array.from({ length: T }, (_, j) => j <= i ? w[j] : 0)), T, 'seq', T * FILA, true);
+  pintar('mY', L.map(r => sl(r.y)), 16, 'div', 48);
+  pintar('mR', L.map(r => r.medio), 256, 'div', 80);
+  pintar('mF', L.map(r => r.f), 1024, 'div', 110);
+  pintar('mO', L.map(r => r.sal), 256, 'div', 80);
+  $('bTxt').textContent = `${l + 1} de ${Red.meta.capas}`; $('bloqueTit').textContent = `Bloque ${l + 1}${Red.meta.tipos[l] === 'local' ? ' (mira cerca)' : ''}`;
+  $('hTxt').textContent = `${h + 1} de ${Red.meta.cabezas}`;
+  pintarSalida();
+  marcarFila(S.fila);
+  pintarDetalle();
 }
 
-/* ---------- paso 3 ---------- */
-const temp = $('temp');
-function probsT() { const T = +temp.value; return softmax(S.R.logits.map(z => z / T)); }
-function pintarSoftmax() {
-  const T = +temp.value; $('tempOut').textContent = NF2.format(T);
-  const p = probsT(), top = topK(p, 10);
-  $('tabla').innerHTML = top.map(i => `<tr><td>${esc(ver(tokStr(i)))}</td><td>${NF2.format(S.R.logits[i])}</td><td>${NF2.format(S.R.logits[i] / T)}</td><td>${pct(p[i])}</td><td class="pbar"><i style="width:${Math.max(.5, p[i] * 100)}%"></i></td></tr>`).join('');
+function pintarSalida() {
+  const T = +$('temp').value; $('tempOut').textContent = NF2.format(T);
+  const p = softmax(S.R.logits.map(z => z / T)), top = [];
+  for (let i = 0; i < p.length; i++) { if (top.length < 10) { top.push(i); top.sort((a, b) => p[b] - p[a]); } else if (p[i] > p[top[9]]) { top[9] = i; top.sort((a, b) => p[b] - p[a]); } }
+  $('dSal').textContent = `próximo token después de «${ver(tokStr(S.ids[S.ids.length - 1]))}»`;
+  $('barras').innerHTML = top.map((i, k) => `<div class="bar${k === 0 ? ' top' : ''}${i === S.elegido ? ' elegido' : ''}"><b>${esc(ver(tokStr(i)))}</b><i style="width:${Math.max(.5, p[i] * 100)}%"></i><span>${pct(p[i])}</span></div>`).join('');
+  S.probs = p;
 }
-temp.addEventListener('input', () => { if (S.R) pintarSoftmax(); });
-function agregar(id) { S.hist.push($('texto').value); $('texto').value += tokStr(id); S.nuevos++; actualizar(); }
-function sortear(p) { let r = Math.random(), i = 0; for (; i < p.length - 1; i++) { r -= p[i]; if (r <= 0) break; } return i; }
-$('btnTop').addEventListener('click', () => { if (S.R) agregar(topK(probsT(), 1)[0]); });
-$('btnSortear').addEventListener('click', () => { if (S.R) agregar(sortear(probsT())); });
-$('btnDeshacer').addEventListener('click', () => { if (S.hist.length) { $('texto').value = S.hist.pop(); S.nuevos = Math.max(0, S.nuevos - 1); actualizar(); } });
 
-/* ---------- paso 4 ---------- */
-function pintarCuento(extra = []) {
-  const n = S.ids.length, nuevos = Math.min(S.nuevos, n);
-  $('cuento').innerHTML = [...S.ids, ...extra].map((id, k) => `<span class="tk${k >= n - nuevos ? ' nuevo' : ''}">${esc(ver(tokStr(id)))}</span>`).join('');
+/* resaltado de una fila (token) en todas las matrices */
+function marcarFila(i) {
+  document.querySelectorAll('#toks span').forEach((s, k) => s.classList.toggle('on', k === i));
+  document.querySelectorAll('.mat .hl').forEach(hl => { if (i === null) { hl.hidden = true; return; } hl.hidden = false; hl.style.top = (i * FILA - 1) + 'px'; hl.style.height = (FILA + 2) + 'px'; });
 }
-$('btnSeguir').addEventListener('click', async () => {
-  if (!S.R || S.generando) return;
-  S.generando = true; $('btnSeguir').disabled = true; $('btnParar').disabled = false;
-  // seguimos desde la caché de la última corrida, un token por vez
-  const c = S.R.cache; let logits = S.R.logits; const gen = []; const T = +temp.value;
-  for (let k = 0; k < 40 && S.generando && c.n < MAXT; k++) {
-    const id = sortear(softmax(logits.map(z => z / T))); gen.push(id); S.nuevos++;
-    pintarCuento(gen);
-    logits = paso(id, c, true).logits;
-    await new Promise(r => setTimeout(r, 10));
-  }
-  S.hist.push($('texto').value); $('texto').value += Tokenizador.decode(gen);
-  S.generando = false; $('btnSeguir').disabled = false; $('btnParar').disabled = true;
-  actualizar();
+document.getElementById('flujo').addEventListener('mousemove', e => {
+  const sp = e.target.closest('#toks span'); if (sp) { S.fila = +sp.dataset.i; marcarFila(S.fila); return; }
+  const cv = e.target.closest('canvas'); if (!cv || !S.R) return;
+  const b = cv.getBoundingClientRect(), i = Math.max(0, Math.min(S.ids.length - 1, Math.floor((e.clientY - b.top) / FILA)));
+  if (i !== S.fila) { S.fila = i; marcarFila(i); }
 });
-$('btnParar').addEventListener('click', () => { S.generando = false; });
+document.getElementById('flujo').addEventListener('click', e => {
+  const cv = e.target.closest('canvas'); if (!cv || !S.R) return;
+  const box = cv.closest('.mat'); if (!['mS', 'mP'].includes(box.id)) return;
+  const b = cv.getBoundingClientRect(), T = S.ids.length;
+  const i = Math.max(0, Math.min(T - 1, Math.floor((e.clientY - b.top) / b.height * T))), j = Math.max(0, Math.min(T - 1, Math.floor((e.clientX - b.left) / b.width * T)));
+  S.celda = [i, j]; pintarDetalle(); $('detalle').scrollIntoView({ block: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+});
 
-const repintar = () => { leerColores(); if (S.R) { pintarRed(); pintarAtencion(); } };
+/* la cuenta de un puntaje: q_i · k_j, número por número */
+function pintarDetalle() {
+  const T = S.ids.length, l = S.capa, h = S.cabeza, DH = 16, L = S.R.cache.reg.capas[l];
+  const [i, j] = S.celda || [T - 1, (() => { const w = pesosFila(S.R.filas[T - 1][l][h]); return w.indexOf(Math.max(...w)); })()];
+  document.querySelectorAll('#mS .hlc, #mP .hlc').forEach(x => { x.hidden = false; x.style.left = (j * FILA) + 'px'; x.style.top = (i * FILA) + 'px'; x.style.width = FILA + 'px'; x.style.height = FILA + 'px'; });
+  const q = Array.from(L[i].q.slice(h * DH, h * DH + DH)), k = Array.from(L[j].k.slice(h * DH, h * DH + DH)), pr = q.map((v, d) => v * k[d]);
+  const s = pr.reduce((a, b) => a + b, 0), sq = Math.max(...q.map(Math.abs), ...k.map(Math.abs)), sp = Math.max(...pr.map(Math.abs));
+  const ti = ver(tokStr(S.ids[i])), tj = ver(tokStr(S.ids[j]));
+  $('detTit').textContent = `La cuenta del puntaje: «${ti}» (token ${i + 1}) mirando a «${tj}» (token ${j + 1}) · bloque ${l + 1}, cabeza ${h + 1}`;
+  const celdas = (arr, sc) => arr.map(v => `<span style="background:${css(colDiv(v, sc))}">${NF2.format(v)}</span>`).join('');
+  $('vecs').innerHTML =
+    `<span class="r" style="color:var(--q)">q de «${esc(ti)}»</span>${celdas(q, sq)}<span></span>` +
+    `<span class="r" style="color:var(--k)">k de «${esc(tj)}»</span>${celdas(k, sq)}<span></span>` +
+    `<span class="r">q × k</span>${celdas(pr, sp)}<span class="s">Σ = ${NF2.format(s)}</span>`;
+  if (j > i) { $('detNota').textContent = `«${tj}» viene después de «${ti}»: la máscara tapa este puntaje y su peso queda en 0.`; return; }
+  const w = pesosFila(S.R.filas[i][l][h]);
+  $('detNota').textContent = `Sumando los 16 productos sale el puntaje ${NF2.format(s)}. Después de softmax sobre toda la fila de «${ti}», ese puntaje se convierte en un peso de ${pct(w[j])}: «${ti}» se lleva ${pct(w[j])} del contenido (V) de «${tj}».`;
+}
+
+/* navegación */
+const mover = (k, d) => { if (k === 'b') S.capa = (S.capa + d + Red.meta.capas) % Red.meta.capas; else S.cabeza = (S.cabeza + d + Red.meta.cabezas) % Red.meta.cabezas; if (S.R) pintarTodo(); };
+$('bPrev').onclick = () => mover('b', -1); $('bNext').onclick = () => mover('b', 1);
+$('hPrev').onclick = () => mover('h', -1); $('hNext').onclick = () => mover('h', 1);
+$('temp').addEventListener('input', () => { if (S.R) pintarSalida(); });
+$('btnGen').addEventListener('click', () => {
+  if (!S.R || !S.probs) return;
+  let r = Math.random(), i = 0; for (; i < S.probs.length - 1; i++) { r -= S.probs[i]; if (r <= 0) break; }
+  S.hist.push($("texto").value); $("texto").value += tokStr(i); actualizar();
+});
+$('btnDeshacer').addEventListener('click', () => { if (S.hist.length) { $('texto').value = S.hist.pop(); S.elegido = null; actualizar(); } });
+
+const repintar = () => { leerColores(); if (S.R) pintarTodo(); };
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', repintar);
 new MutationObserver(repintar).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 </script>

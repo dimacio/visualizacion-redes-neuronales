@@ -77,16 +77,18 @@ function lin(x, W, b, nout) {
   return y;
 }
 const gelu = x => 0.5 * x * (1 + Math.tanh(0.7978845608028654 * (x + 0.044715 * x * x * x)));
-function nuevaCache() { const NL = Red.meta.capas; return { K: [...Array(NL)].map(() => []), V: [...Array(NL)].map(() => []), n: 0 }; }
+function nuevaCache(registrar) { const NL = Red.meta.capas; return { K: [...Array(NL)].map(() => []), V: [...Array(NL)].map(() => []), n: 0, reg: registrar ? { emb: [], capas: [...Array(NL)].map(() => []) } : null }; }
 // procesa un token; guarda los puntajes de atención (antes de softmax) de este token en cada capa y cabeza
 function paso(id, c, conLogits) {
   const { dim: D, cabezas: NH, capas: NL, eps } = Red.meta, DH = D / NH, t = c.n;
   const te = Red.P['wte.weight'], pe = Red.P['wpe.weight'], x = new Float32Array(D);
   for (let i = 0; i < D; i++) x[i] = te[id * D + i] + pe[t * D + i];
+  if (c.reg) c.reg.emb.push(x.slice());
   const punt = [];
   for (let l = 0; l < NL; l++) {
     const B = Red.L[l], h = lnorm(x, B.ln1w, B.ln1b, eps);
     const q = lin(h, B.qw, null, D), k = lin(h, B.kw, null, D), v = lin(h, B.vw, null, D);
+    const r = c.reg ? { q, k, v } : null;
     c.K[l].push(k); c.V[l].push(v);
     const y = new Float32Array(D), pl = [];
     for (let hd = 0; hd < NH; hd++) {
@@ -98,8 +100,10 @@ function paso(id, c, conLogits) {
     }
     punt.push(pl);
     const ao = lin(y, B.ow, B.ob, D); for (let i = 0; i < D; i++) x[i] += ao[i];
+    if (r) r.medio = x.slice();
     const f = lin(lnorm(x, B.ln2w, B.ln2b, eps), B.fw, B.fb, 4 * D); for (let i = 0; i < f.length; i++) f[i] = gelu(f[i]);
     const mo = lin(f, B.pw, B.pb, D); for (let i = 0; i < D; i++) x[i] += mo[i];
+    if (r) { r.y = y; r.f = f; r.sal = x.slice(); c.reg.capas[l].push(r); }
   }
   c.n++;
   let logits = null;
@@ -111,7 +115,7 @@ function paso(id, c, conLogits) {
 }
 // corre la frase entera: devuelve los puntajes de todas las posiciones y los logits del último token
 function correr(ids) {
-  const c = nuevaCache(), filas = [];
+  const c = nuevaCache(true), filas = [];
   let last = null;
   ids.forEach((id, i) => { const r = paso(id, c, i === ids.length - 1); filas.push(r.punt); if (r.logits) last = r.logits; });
   return { cache: c, filas, logits: last };
