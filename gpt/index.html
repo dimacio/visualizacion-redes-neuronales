@@ -82,6 +82,18 @@ input[type=range]{accent-color:var(--accent);width:140px}
 .hlc[hidden]{display:none}
 .op{align-self:center;font:500 .7rem var(--mono);color:var(--muted);text-align:center;padding-inline:2px;white-space:nowrap}
 .q .t{color:var(--q)} .k .t{color:var(--k)} .v .t{color:var(--v)}
+/* partes que se expanden y colapsan */
+.cuerpo{display:flex;gap:6px;align-items:flex-start}
+.cuerpo[hidden]{display:none}
+.tog{display:flex;gap:6px;align-items:center;font:600 .74rem var(--body);text-transform:uppercase;letter-spacing:.06em;padding:4px 9px;background:var(--sunk);border-color:transparent}
+.tog::before{content:"▸";font-size:.8rem;color:var(--accent)}
+.tog[aria-expanded="true"]::before{content:"▾"}
+.sub{display:flex;gap:6px;align-items:stretch;flex:0 0 auto;align-self:stretch}
+.sub>.tog{writing-mode:vertical-rl;transform:rotate(180deg);padding:9px 4px;align-self:stretch;justify-content:flex-end}
+.sub>.tog::before{content:"▸";transform:rotate(180deg)}
+.sub>.tog[aria-expanded="true"]::before{content:"▸";transform:none}
+.tip{position:fixed;z-index:20;pointer-events:none;background:var(--fg);color:var(--bg);font:500 .74rem var(--mono);padding:4px 7px;border-radius:5px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.tip[hidden]{display:none}
 .toks{display:flex;flex-direction:column;font:500 .78rem var(--mono)}
 .toks span{white-space:pre;overflow:hidden;text-overflow:ellipsis;max-width:6.5rem;cursor:pointer;padding-inline:4px;border-radius:3px;display:flex;align-items:center}
 .toks span.on{background:var(--accent-soft)}
@@ -112,7 +124,7 @@ footer{margin-top:36px;padding-top:16px;border-top:1px solid var(--line);font-si
 </style>
 </head>
 <body>
-<span id="probe" hidden></span>
+<span id="probe" hidden></span><div class="tip" id="tip" hidden></div>
 <div class="wrap">
 <header class="top">
   <div class="titulo"><span class="eyebrow">Introducción a la IA · Clase 2</span><h1>GPT a la vista</h1><span class="small">TinyStories-8M: un GPT chico que escribe cuentos infantiles en inglés. Todo corre en tu navegador.</span></div>
@@ -133,10 +145,16 @@ footer{margin-top:36px;padding-top:16px;border-top:1px solid var(--line);font-si
 <div class="diagrama"><div class="flujo" id="flujo">
   <!-- entrada -->
   <div class="grupo" id="gEntrada">
-    <div class="cab"><h3>Embedding</h3></div>
+    <div class="cab"><button type="button" class="tog" aria-expanded="false" aria-controls="cEmb">Embedding</button></div>
     <div class="fila">
       <div class="mat"><span class="t">Tokens</span><span class="d" id="dTok"></span><div class="toks" id="toks"></div></div>
-      <div class="mat" id="mEmb"><span class="t">token + posición</span><span class="d">256 números</span><div class="cv"><canvas></canvas><div class="hl" hidden></div></div></div>
+      <div class="cuerpo" id="cEmb" hidden>
+        <div class="mat" id="mTe"><span class="t">del token</span><span class="d">32 de 256 números</span><div class="cv"><canvas></canvas><div class="hl" hidden></div></div></div>
+        <span class="op">+</span>
+        <div class="mat" id="mPe"><span class="t">de la posición</span><span class="d">32 de 256 números</span><div class="cv"><canvas></canvas><div class="hl" hidden></div></div></div>
+        <span class="op">=</span>
+      </div>
+      <div class="mat" id="mEmb"><span class="t">embedding</span><span class="d">32 de 256 números</span><div class="cv"><canvas></canvas><div class="hl" hidden></div></div></div>
     </div>
   </div>
   <span class="op">→</span>
@@ -144,9 +162,9 @@ footer{margin-top:36px;padding-top:16px;border-top:1px solid var(--line);font-si
   <div class="grupo" id="gBloque">
     <div class="cab"><h3 id="bloqueTit">Bloque transformer</h3></div>
     <div class="fila">
-      <div class="col">
-        <span class="lbl">Atención de una cabeza</span>
-        <div class="fila">
+      <div class="sub">
+        <button type="button" class="tog" aria-expanded="true" aria-controls="cAtt">Atención · <span id="attTxt">cabeza 1</span></button>
+        <div class="cuerpo" id="cAtt">
           <div class="col">
             <div class="mat q" id="mQ"><span class="t">Q</span><span class="d">16 números</span><div class="cv"><canvas></canvas><div class="hl" hidden></div></div></div>
           </div>
@@ -167,9 +185,15 @@ footer{margin-top:36px;padding-top:16px;border-top:1px solid var(--line);font-si
       </div>
       <span class="op">16 cabezas<br>juntas<br>+ residuo<br>→</span>
       <div class="mat" id="mR"><span class="t">con atención</span><span class="d">256 números</span><div class="cv"><canvas></canvas><div class="hl" hidden></div></div></div>
-      <span class="op">MLP<br>→</span>
-      <div class="mat" id="mF"><span class="t">MLP oculta</span><span class="d">1.024 números</span><div class="cv"><canvas></canvas><div class="hl" hidden></div></div></div>
-      <span class="op">+ residuo<br>→</span>
+      <span class="op">→</span>
+      <div class="sub">
+        <button type="button" class="tog" aria-expanded="false" aria-controls="cMlp">MLP</button>
+        <div class="cuerpo" id="cMlp" hidden>
+          <div class="mat" id="mF"><span class="t">capa oculta</span><span class="d">1.024 números</span><div class="cv"><canvas></canvas><div class="hl" hidden></div></div></div>
+          <span class="op">+ residuo<br>→</span>
+        </div>
+      </div>
+      <span class="op">→</span>
       <div class="mat" id="mO"><span class="t">salida</span><span class="d">del bloque</span><div class="cv"><canvas></canvas><div class="hl" hidden></div></div></div>
     </div>
   </div>
@@ -183,7 +207,7 @@ footer{margin-top:36px;padding-top:16px;border-top:1px solid var(--line);font-si
   </aside>
 </div>
 
-<div class="leyenda"><span>negativo</span><i class="ramp" id="rampDiv"></i><span>positivo</span><span style="width:12px"></span><span>0</span><i class="ramp" id="rampSeq"></i><span>1 (pesos)</span><span class="small">Pasá el mouse por un token o una fila para seguirlo por toda la red. Tocá una celda de los puntajes para ver la cuenta.</span></div>
+<div class="leyenda"><span>negativo</span><i class="ramp" id="rampDiv"></i><span>positivo</span><span style="width:12px"></span><span>0</span><i class="ramp" id="rampSeq"></i><span>1 (pesos)</span><span class="small">Tocá ▸ para expandir una parte del diagrama. Pasá el mouse por una celda para ver su número y seguir ese token por toda la red. Tocá una celda de los puntajes para ver la cuenta.</span></div>
 
 <div class="detalle" id="detalle" style="margin-top:12px">
   <span class="lbl" id="detTit">La cuenta de un puntaje</span>
@@ -192,7 +216,7 @@ footer{margin-top:36px;padding-top:16px;border-top:1px solid var(--line);font-si
 </div>
 
 <div class="expl">
-  <article><b class="n">1</b><h2>Tokens y embedding</h2><p>El texto se parte en tokens, pedazos de palabra de un vocabulario de 50.257. Cada token se cambia por una lista de 256 números aprendida durante el entrenamiento, su embedding, y se le suma otra lista que codifica su posición en la frase. Cada fila del diagrama es un token.</p></article>
+  <article><b class="n">1</b><h2>Tokens y embedding</h2><p>El texto se parte en tokens, pedazos de palabra de un vocabulario de 50.257. Cada token se cambia por una lista de 256 números aprendida durante el entrenamiento, su embedding, y se le suma otra lista que codifica su posición en la frase. Cada fila del diagrama es un token. Si expandís «Embedding» se ven las dos partes por separado: un token repetido, como «Tom» en el ejemplo, tiene la misma fila de token pero otra fila de posición.</p></article>
   <article><b class="n">2</b><h2>Q, K y V</h2><p>En cada bloque, cada token arma tres vectores multiplicando su embedding por tres matrices aprendidas: una <b style="color:var(--q)">pregunta</b> (Q), una <b style="color:var(--k)">etiqueta</b> (K) y un <b style="color:var(--v)">contenido</b> (V). Hay 16 cabezas y cada una usa 16 de los 256 números, así que cada cabeza puede buscar una cosa distinta.</p></article>
   <article><b class="n">3</b><h2>Atención</h2><p>Para saber a quién mirar, cada token compara su pregunta con la etiqueta de cada token con un producto interno: el puntaje. La máscara tapa los tokens que vienen después, porque al escribir no se puede mirar el futuro. Softmax convierte cada fila en pesos que suman 1, y el token se lleva una mezcla de los contenidos.</p></article>
   <article><b class="n">4</b><h2>MLP y residuo</h2><p>Las 16 cabezas se juntan y se suman a lo que el token traía (el residuo). Después cada token pasa solo por una red densa, el MLP: se expande a 1.024 números, pasa por una no linealidad y vuelve a 256. Ese resultado entra al bloque siguiente. Hay 8 bloques.</p></article>
@@ -243,10 +267,10 @@ function escala(filas) { const a = []; for (const f of filas) for (const v of f)
 
 /* dibuja una matriz de T filas en un canvas; alto de fila común a todo el diagrama */
 let FILA = 16;
-function pintar(id, filas, ncol, modo, anchoCss, mascara) {
+function pintar(id, filas, ncol, modo, anchoCss, mascara, sFijo) {
   const box = $(id), cv = box.querySelector('canvas'), T = filas.length;
   cv.width = ncol; cv.height = T; cv.style.width = anchoCss + 'px'; cv.style.height = (T * FILA) + 'px';
-  const ctx = cv.getContext('2d'), img = ctx.createImageData(ncol, T), s = modo === 'div' ? escala(filas) : 1;
+  const ctx = cv.getContext('2d'), img = ctx.createImageData(ncol, T), s = modo === 'div' ? (sFijo || escala(filas)) : 1;
   for (let i = 0; i < T; i++) for (let j = 0; j < ncol; j++) {
     let c;
     if (mascara && j > i) c = mascara === 'suave' ? mixA(C.sunk, modo === 'seq' ? colSeq(filas[i][j]) : colDiv(filas[i][j], s), 0.22) : C.sunk;
@@ -255,7 +279,7 @@ function pintar(id, filas, ncol, modo, anchoCss, mascara) {
     const k = (i * ncol + j) * 4; img.data[k] = c[0]; img.data[k + 1] = c[1]; img.data[k + 2] = c[2]; img.data[k + 3] = 255;
   }
   ctx.putImageData(img, 0, 0);
-  box._T = T; box._n = ncol;
+  box._T = T; box._n = ncol; box._f = filas; box._m = mascara;
 }
 
 /* ---------- arranque ---------- */
@@ -288,7 +312,13 @@ function pintarTodo() {
   const T = S.ids.length, reg = S.R.cache.reg, l = S.capa, h = S.cabeza, DH = 16, sl = a => Array.from(a.subarray ? a.subarray(h * DH, h * DH + DH) : a.slice(h * DH, h * DH + DH));
   $('dTok').textContent = `${T} tokens`;
   $('toks').innerHTML = S.ids.map((id, i) => `<span data-i="${i}" style="height:${FILA}px">${esc(ver(tokStr(id)))}</span>`).join('');
-  pintar('mEmb', reg.emb, 256, 'div', 90);
+  // embedding: se muestran los primeros 32 de los 256 números, con una escala común para token, posición y suma
+  const NE = 32, D = Red.meta.dim, te = Red.P['wte.weight'], pe = Red.P['wpe.weight'];
+  const fTe = S.ids.map(id => Array.from(te.subarray(id * D, id * D + NE))), fPe = S.ids.map((_, t) => Array.from(pe.subarray(t * D, t * D + NE)));
+  const fEm = reg.emb.map(x => Array.from(x.subarray(0, NE))), eEsc = escala([...fTe, ...fPe, ...fEm]);
+  pintar('mTe', fTe, NE, 'div', NE * 5, null, eEsc);
+  pintar('mPe', fPe, NE, 'div', NE * 5, null, eEsc);
+  pintar('mEmb', fEm, NE, 'div', NE * 5, null, eEsc);
   const L = reg.capas[l];
   pintar('mQ', L.map(r => sl(r.q)), 16, 'div', 48);
   pintar('mK', L.map(r => sl(r.k)), 16, 'div', 48);
@@ -307,7 +337,7 @@ function pintarTodo() {
   pintar('mF', L.map(r => r.f), 1024, 'div', 110);
   pintar('mO', L.map(r => r.sal), 256, 'div', 80);
   $('bTxt').textContent = `${l + 1} de ${Red.meta.capas}`; $('bloqueTit').textContent = `Bloque ${l + 1}${Red.meta.tipos[l] === 'local' ? ' (mira cerca)' : ''}`;
-  $('hTxt').textContent = `${h + 1} de ${Red.meta.cabezas}`;
+  $('hTxt').textContent = `${h + 1} de ${Red.meta.cabezas}`; $('attTxt').textContent = `cabeza ${h + 1}`;
   pintarSalida();
   marcarFila(S.fila);
   pintarDetalle();
@@ -332,7 +362,26 @@ document.getElementById('flujo').addEventListener('mousemove', e => {
   const cv = e.target.closest('canvas'); if (!cv || !S.R) return;
   const b = cv.getBoundingClientRect(), i = Math.max(0, Math.min(S.ids.length - 1, Math.floor((e.clientY - b.top) / FILA)));
   if (i !== S.fila) { S.fila = i; marcarFila(i); }
+  mostrarValor(cv.closest('.mat'), i, Math.floor((e.clientX - b.left) / b.width * cv.width), e);
 });
+document.getElementById('flujo').addEventListener('mouseleave', () => { $('tip').hidden = true; });
+document.getElementById('flujo').addEventListener('mouseout', e => { if (e.target.tagName === 'CANVAS') $('tip').hidden = true; });
+/* el número de la celda bajo el mouse */
+function mostrarValor(box, i, j, e) {
+  const tip = $('tip'); if (!box || !box._f || !box._f[i]) { tip.hidden = true; return; }
+  j = Math.max(0, Math.min(box._n - 1, j));
+  const ti = `«${ver(tokStr(S.ids[i]))}»`, v = box._f[i][j];
+  if (box.id === 'mS' || box.id === 'mP') {
+    const tj = `«${ver(tokStr(S.ids[j]))}»`;
+    tip.textContent = j > i ? `${ti} → ${tj}: tapado por la máscara` : `${ti} → ${tj}: ${box.id === 'mP' ? pct(v) : NF2.format(v)}`;
+  } else {
+    const tot = { mTe: 256, mPe: 256, mEmb: 256 }[box.id] || box._n;
+    tip.textContent = `${ti} · número ${j + 1} de ${tot}: ${NF2.format(v)}`;
+  }
+  tip.hidden = false;
+  const x = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8);
+  tip.style.left = x + 'px'; tip.style.top = (e.clientY + 16) + 'px';
+}
 document.getElementById('flujo').addEventListener('click', e => {
   const cv = e.target.closest('canvas'); if (!cv || !S.R) return;
   const box = cv.closest('.mat'); if (!['mS', 'mP'].includes(box.id)) return;
@@ -359,6 +408,12 @@ function pintarDetalle() {
   const w = pesosFila(S.R.filas[i][l][h]);
   $('detNota').textContent = `Sumando los 16 productos sale el puntaje ${NF2.format(s)}. Después de softmax sobre toda la fila de «${ti}», ese puntaje se convierte en un peso de ${pct(w[j])}: «${ti}» se lleva ${pct(w[j])} del contenido (V) de «${tj}».`;
 }
+
+/* expandir y colapsar partes del diagrama */
+document.querySelectorAll('.tog').forEach(b => b.addEventListener('click', () => {
+  const abierto = b.getAttribute('aria-expanded') === 'true';
+  b.setAttribute('aria-expanded', String(!abierto)); $(b.getAttribute('aria-controls')).hidden = abierto;
+}));
 
 /* navegación */
 const mover = (k, d) => { if (k === 'b') S.capa = (S.capa + d + Red.meta.capas) % Red.meta.capas; else S.cabeza = (S.cabeza + d + Red.meta.cabezas) % Red.meta.cabezas; if (S.R) pintarTodo(); };
