@@ -142,7 +142,7 @@ footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);font-si
     <a href="#softmax"><b>3</b> Softmax y temperatura</a>
     <a href="#escribir"><b>4</b> Escribí tu cuento</a>
   </nav>
-  <p class="carga" id="carga">Cargando el modelo (38 MB)… <span id="cargaPct">0 %</span></p>
+  <p class="carga" id="carga">Cargando el modelo… <span id="cargaPct">0 %</span>. La primera vez baja 38 MB; después queda guardado en el navegador.</p>
 </header>
 
 <section id="vistazo">
@@ -222,6 +222,12 @@ footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);font-si
 </footer>
 </div>
 
+<script>
+// si algo falla antes de terminar de cargar, mostrarlo en el cartel en vez de quedarse en 0 %
+function mostrarFalla(msg) { const c = document.getElementById('carga'); if (c && !c.hidden) c.textContent = 'No se pudo cargar el modelo: ' + msg + '. Probá recargar la página; si sigue, avisá qué navegador usás.'; }
+window.addEventListener('error', e => mostrarFalla(e.message || 'error de JavaScript'));
+window.addEventListener('unhandledrejection', e => mostrarFalla((e.reason && e.reason.message) || String(e.reason)));
+</script>
 <script src="gpt.js"></script>
 <script>
 const EJEMPLOS = [
@@ -256,7 +262,7 @@ const ej = $('ejemplos');
 EJEMPLOS.forEach((e, i) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = e.length > 46 ? '…' + e.slice(-44) : e; b.title = e; b.addEventListener('click', () => { $('texto').value = e; S.hist = []; S.nuevos = 0; actualizar(); }); ej.appendChild(b); });
 $('texto').value = EJEMPLOS[0];
 leerColores();
-cargarModelo('modelo', f => { $('cargaPct').textContent = pct(f); }).then(() => { $('carga').hidden = true; armarChips(); actualizar(); })
+cargarModelo('modelo', (f, b, t) => { $('cargaPct').textContent = `${pct(f)} (${(b / 1e6).toFixed(1).replace('.', ',')} de ${(t / 1e6).toFixed(0)} MB)`; }).then(() => { $('carga').hidden = true; armarChips(); actualizar(); })
   .catch(err => { $('carga').textContent = 'No se pudo cargar el modelo. Revisá la conexión y recargá la página. (' + err.message + ')'; });
 
 let espera = null;

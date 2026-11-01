@@ -118,12 +118,32 @@ function correr(ids) {
 }
 function softmax(a) { let mx = -Infinity; for (const v of a) if (v > mx) mx = v; const p = new Float32Array(a.length); let s = 0; for (let i = 0; i < a.length; i++) { p[i] = Math.exp(a[i] - mx); s += p[i]; } for (let i = 0; i < p.length; i++) p[i] /= s; return p; }
 
+async function pedir(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`${url} respondió ${r.status}`);
+  return r;
+}
+// baja un archivo grande avisando cuántos bytes van; si el navegador ya lo tiene guardado, lo usa
+async function bajarBinario(url, alBytes) {
+  let cache = null;
+  try { cache = await caches.open('gpt-a-la-vista-v1'); const hit = await cache.match(url); if (hit) { const b = await hit.arrayBuffer(); alBytes(b.byteLength); return b; } } catch (e) { cache = null; }
+  const r = await pedir(url);
+  const partes = []; let n = 0;
+  if (r.body && r.body.getReader) {
+    const lector = r.body.getReader();
+    for (;;) { const { done, value } = await lector.read(); if (done) break; partes.push(value); n += value.byteLength; alBytes(value.byteLength); }
+  } else { const b = new Uint8Array(await r.arrayBuffer()); partes.push(b); alBytes(b.byteLength); }
+  const u8 = new Uint8Array(partes.reduce((a, p) => a + p.byteLength, 0)); let o = 0; for (const p of partes) { u8.set(p, o); o += p.byteLength; }
+  if (cache) { try { await cache.put(url, new Response(u8.slice().buffer, { headers: { 'Content-Type': 'application/octet-stream' } })); } catch (e) { /* sin lugar: se baja de nuevo la próxima vez */ } }
+  return u8.buffer;
+}
 async function cargarModelo(base, alProgreso) {
-  const meta = await (await fetch(`${base}/meta.json`)).json();
-  const [vocab, merges] = await Promise.all([fetch(`${base}/vocab.json`).then(r => r.json()), fetch(`${base}/merges.txt`).then(r => r.text())]);
+  const meta = await (await pedir(`${base}/meta.json`)).json();
+  const [vocab, merges] = await Promise.all([pedir(`${base}/vocab.json`).then(r => r.json()), pedir(`${base}/merges.txt`).then(r => r.text())]);
   Tokenizador.cargar(vocab, merges);
-  let hecho = 0; const total = meta.archivos.length;
-  const buffers = await Promise.all(meta.archivos.map(async f => { const b = await (await fetch(`${base}/${f}`)).arrayBuffer(); hecho++; alProgreso && alProgreso(hecho / total); return b; }));
+  const total = meta.orden.reduce((a, { shape }) => a + 2 * shape.reduce((x, y) => x * y, 1), 0);
+  let bajado = 0;
+  const buffers = await Promise.all(meta.archivos.map(f => bajarBinario(`${base}/${f}`, n => { bajado += n; alProgreso && alProgreso(Math.min(1, bajado / total), bajado, total); })));
   armarPesos(meta, buffers);
   return meta;
 }
