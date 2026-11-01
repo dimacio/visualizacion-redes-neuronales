@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Herramientas de visualización para redes neuronales</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+:root{--bg:#fbfafc;--surface:#fff;--line:#e2dcea;--fg:#1b1f3b;--muted:#666a85;--accent:#6a3fa0;--amber:#c9851c;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#15131c;--surface:#1d1a27;--line:#363048;--fg:#ece9f3;--muted:#a6a2b8;--accent:#b18ae6;--amber:#e6a94a;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 "IBM Plex Sans",system-ui,sans-serif}
+.wrap{max-width:860px;margin:0 auto;padding:40px max(16px,env(safe-area-inset-left,0px)) 64px}
+.eyebrow{font:500 .78rem "IBM Plex Mono",monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--amber)}
+h1{font:700 clamp(2rem,5vw,2.8rem)/1.15 "Source Serif 4",Georgia,serif;margin:10px 0 12px;text-wrap:balance}
+p{margin:0;color:var(--muted);max-width:62ch}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin-top:28px}
+a.card{display:flex;flex-direction:column;gap:6px;padding:18px;border:1px solid var(--line);border-radius:14px;background:var(--surface);color:var(--fg);text-decoration:none}
+a.card:hover,a.card:focus-visible{border-color:var(--accent);outline:none}
+a.card b{font:700 1.25rem "Source Serif 4",Georgia,serif}
+a.card span{font-size:.92rem;color:var(--muted)}
+a.card em{font:500 .75rem "IBM Plex Mono",monospace;font-style:normal;color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <span class="eyebrow">Introducción a la IA</span>
+  <h1>Herramientas de visualización para redes neuronales</h1>
+  <p>Páginas interactivas para mirar por dentro redes neuronales chicas, con modelos de verdad que corren en el navegador. Cada red hace dos cosas con los mismos pesos: guarda memoria de lo que aprendió y procesa la entrada que tiene adelante.</p>
+  <div class="grid">
+    <a class="card" href="cnn/"><em>Clase 1 · Imágenes</em><b>CNN a la vista</b><span>Una red convolucional entrenada con dígitos escritos a mano: filtros, mapas de activación, pooling y softmax. Podés dibujar tu propio dígito.</span></a>
+    <a class="card" href="gpt/"><em>Clase 2 · Lenguaje</em><b>GPT a la vista</b><span>TinyStories-8M, un GPT chico que escribe cuentos infantiles: tokens, atención cabeza por cabeza, temperatura y escritura en vivo.</span></a>
+  </div>
+</div>
+</body>
+</html>

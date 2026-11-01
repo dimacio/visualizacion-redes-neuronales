@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>GPT a la vista</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Misma familia visual que «CNN a la vista»: columna de lectura con laboratorios más anchos; una frase seguida capa por capa. */
+:root{
+  --bg:#fbfafc; --surface:#ffffff; --sunk:#f2eff7; --line:#e2dcea;
+  --fg:#1b1f3b; --muted:#666a85;
+  --accent:#6a3fa0; --accent-soft:rgba(106,63,160,.13);
+  --amber:#c9851c; --amber-soft:rgba(201,133,28,.16); --ok:#1f8a7e; --bad:#c94e33;
+  --display:"Source Serif 4", Cambria, Georgia, serif;
+  --body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, Consolas, monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#15131c; --surface:#1d1a27; --sunk:#252134; --line:#363048;
+  --fg:#ece9f3; --muted:#a6a2b8;
+  --accent:#b18ae6; --accent-soft:rgba(177,138,230,.18);
+  --amber:#e6a94a; --amber-soft:rgba(230,169,74,.2); --ok:#4cc2b2; --bad:#ec7f63; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#15131c; --surface:#1d1a27; --sunk:#252134; --line:#363048;
+  --fg:#ece9f3; --muted:#a6a2b8;
+  --accent:#b18ae6; --accent-soft:rgba(177,138,230,.18);
+  --amber:#e6a94a; --amber-soft:rgba(230,169,74,.2); --ok:#4cc2b2; --bad:#ec7f63; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:16px/1.6 var(--body);margin:0}
+.wrap{max-width:1120px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 64px}
+.prose{max-width:68ch}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;line-height:1.2;margin:0}
+h1{font-size:clamp(2rem,5vw,3rem);font-weight:700}
+h2{font-size:clamp(1.5rem,3.4vw,2rem);font-weight:700}
+p{margin:0}
+a{color:var(--accent)}
+.stack{display:flex;flex-direction:column;gap:12px}
+.eyebrow{font:500 .78rem/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--amber)}
+.lead{font-size:1.12rem;color:var(--muted)}
+.small{font-size:.88rem;color:var(--muted)}
+header.top{display:flex;flex-direction:column;gap:14px;padding-block:12px 28px;border-bottom:1px solid var(--line)}
+.tl{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.tl a{display:flex;gap:8px;align-items:baseline;text-decoration:none;color:var(--fg);background:var(--sunk);border:1px solid var(--line);padding:6px 12px;border-radius:999px;font-size:.88rem}
+.tl a b{font:500 .85rem var(--mono);color:var(--accent)}
+.tl a:hover,.tl a:focus-visible{border-color:var(--accent);outline:none}
+section{display:flex;flex-direction:column;gap:18px;padding-block:44px 8px}
+.step{font:500 .85rem var(--mono);color:var(--accent)}
+.lab{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:16px;min-width:0}
+.panel{display:flex;flex-direction:column;gap:8px;min-width:0}
+.panel h3,.lbl{font:600 .78rem var(--body);text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.dims{font:500 .76rem var(--mono);color:var(--amber);font-variant-numeric:tabular-nums}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+button{font:500 .9rem var(--body);border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:8px;padding:7px 12px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);color:var(--bg);border-color:var(--accent)}
+button:disabled{opacity:.5;cursor:default}
+button:focus-visible,textarea:focus-visible,input:focus-visible,canvas:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+textarea{font:500 1rem var(--mono);width:100%;border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:var(--surface);color:var(--fg);resize:vertical}
+input[type=range]{width:100%;accent-color:var(--accent)}
+canvas{display:block;image-rendering:pixelated;max-width:100%;border-radius:4px;background:var(--sunk)}
+.carga{background:var(--amber-soft);border-radius:10px;padding:12px 14px;font-size:.95rem}
+.carga[hidden]{display:none}
+
+/* ejemplos y tokens */
+.ejemplos{display:flex;flex-wrap:wrap;gap:6px}
+.ejemplos button{font-size:.82rem;padding:5px 10px;max-width:100%;text-align:left}
+.ejemplos button.sel{background:var(--accent-soft);border-color:var(--accent)}
+.toks{display:flex;flex-wrap:wrap;gap:4px 3px;font:500 .9rem/1.4 var(--mono);align-items:baseline}
+.tk{border-radius:5px;padding:2px 5px;white-space:pre;background:var(--sunk);border:1px solid var(--line)}
+.tk:nth-child(even){background:var(--accent-soft)}
+.tk .id{display:block;font-size:.6rem;color:var(--muted);text-align:center}
+.tk.nuevo{background:var(--amber-soft)}
+
+/* la red de un vistazo */
+.netbox{overflow-x:auto;min-width:0}
+.net{display:grid;grid-template-columns:minmax(120px,1fr) repeat(8,auto) minmax(210px,1.5fr);gap:10px;align-items:start;min-width:1040px}
+.layer{display:flex;flex-direction:column;gap:6px;min-width:0}
+.heads16{display:grid;grid-template-columns:repeat(4,30px);gap:3px}
+.head{padding:0;border:0;background:none;line-height:0;border-radius:3px;cursor:pointer}
+.head canvas{width:30px;height:30px;border-radius:3px}
+.head.sel{outline:2px solid var(--amber);outline-offset:1px}
+.head:focus-visible{outline:2px solid var(--accent)}
+.tipo{font:500 .68rem var(--mono);color:var(--muted)}
+.lista{display:flex;flex-direction:column;gap:2px;font:500 .8rem var(--mono)}
+.lista span{white-space:pre;overflow:hidden;text-overflow:ellipsis}
+.bars{display:flex;flex-direction:column;gap:4px}
+.bar{display:grid;grid-template-columns:minmax(0,6.5rem) minmax(0,1fr) 3.4rem;gap:8px;align-items:center;font:500 .82rem var(--mono);font-variant-numeric:tabular-nums}
+.bar b{white-space:pre;overflow:hidden;text-overflow:ellipsis}
+.bar i{display:block;height:11px;border-radius:3px;background:var(--line);min-width:2px}
+.bar.top i{background:var(--accent)}
+.bar span:last-child{text-align:right}
+@media (max-width:760px){
+  .net{grid-template-columns:minmax(0,1fr);min-width:0}
+  .heads16{grid-template-columns:repeat(8,30px)}
+}
+
+/* atención por dentro */
+.chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.chips .grp{font:600 .74rem var(--body);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-right:4px}
+.chips button{padding:4px 9px;font:500 .82rem var(--mono)}
+.chips button.sel{background:var(--accent-soft);border-color:var(--accent)}
+.duo{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px}
+@media (max-width:820px){.duo{grid-template-columns:minmax(0,1fr)}}
+.matriz{display:grid;gap:1px;font:500 .62rem var(--mono);overflow-x:auto;max-width:100%}
+.matriz .c{width:100%;aspect-ratio:1/1;border-radius:2px;cursor:pointer;min-width:10px}
+.matriz .rl{white-space:pre;text-align:right;padding-right:4px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;max-width:7rem}
+.matriz .rl.sel{color:var(--amber);font-weight:600}
+.matbox{overflow-x:auto;min-width:0}
+.chain{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font:500 .8rem var(--mono)}
+.chain .n{background:var(--sunk);border:1px solid var(--line);border-radius:8px;padding:5px 9px}
+.chain .n.on{border-color:var(--accent);background:var(--accent-soft)}
+.chain .o{color:var(--muted)}
+.tablebox{overflow-x:auto;min-width:0}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums;font-size:.86rem}
+th,td{padding:5px 8px;text-align:right;border-bottom:1px solid var(--line);font-family:var(--mono)}
+th{font:600 .72rem var(--body);text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+td:first-child,th:first-child{text-align:left;white-space:pre}
+td.pbar{width:34%;text-align:left}
+td.pbar i{display:block;height:10px;border-radius:3px;background:var(--accent);min-width:1px}
+tr.yo td{color:var(--amber);font-weight:600}
+.slider{display:grid;grid-template-columns:7rem minmax(0,1fr) 4rem;gap:10px;align-items:center}
+.slider output{font:500 .9rem var(--mono);text-align:right}
+@media (max-width:760px){.slider{grid-template-columns:minmax(0,1fr) 4rem}.slider label{grid-column:1/-1}}
+footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);font-size:.85rem;color:var(--muted);display:flex;flex-direction:column;gap:8px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<span id="probe" hidden></span>
+<div class="wrap">
+<header class="top">
+  <span class="eyebrow">Introducción a la IA · Clase 2 · Modelos de lenguaje</span>
+  <h1>GPT a la vista</h1>
+  <p class="lead prose">Un modelo de lenguaje chico, TinyStories-8M, que aprendió a escribir cuentos infantiles en inglés leyendo unos dos millones de cuentos. Elegí un comienzo y seguilo por dentro: cómo se parte en tokens, qué mira cada cabeza de atención y cómo elige la palabra que sigue. Todo corre en tu navegador.</p>
+  <nav class="tl" aria-label="Secciones">
+    <a href="#vistazo"><b>1</b> La red de un vistazo</a>
+    <a href="#atencion"><b>2</b> La atención por dentro</a>
+    <a href="#softmax"><b>3</b> Softmax y temperatura</a>
+    <a href="#escribir"><b>4</b> Escribí tu cuento</a>
+  </nav>
+  <p class="carga" id="carga">Cargando el modelo (38 MB)… <span id="cargaPct">0 %</span></p>
+</header>
+
+<section id="vistazo">
+  <div class="stack prose">
+    <span class="step">Paso 1</span>
+    <h2>La red de un vistazo</h2>
+    <p>El texto se parte en <b>tokens</b> y cada token entra a la red como una lista de 256 números, su embedding. Después pasa por 8 bloques. En cada bloque, 16 <b>cabezas de atención</b> deciden de qué tokens anteriores tomar información; cada cuadradito muestra el patrón de una cabeza (fila: el token que mira; columna: a quién mira). Al final, la red da una probabilidad para cada uno de los 50.257 tokens posibles.</p>
+    <p>Tocá cualquier cuadradito para abrirlo en el paso 2.</p>
+  </div>
+  <div class="lab">
+    <div class="panel">
+      <h3>Comienzos de cuentos</h3>
+      <div class="ejemplos" id="ejemplos" role="group" aria-label="Comienzos de cuentos"></div>
+      <label class="lbl" for="texto">Texto de entrada (en inglés)</label>
+      <textarea id="texto" rows="2"></textarea>
+      <div class="toks" id="tokens" aria-live="polite"></div>
+    </div>
+    <div class="netbox"><div class="net" id="net"></div></div>
+  </div>
+</section>
+
+<section id="atencion">
+  <div class="stack prose">
+    <span class="step">Paso 2</span>
+    <h2>La atención por dentro</h2>
+    <p>Cada token arma tres vectores a partir de su embedding: una <b>pregunta</b> (q), una <b>etiqueta</b> (k) y un <b>contenido</b> (v). Para decidir a quién mirar, compara su pregunta con la etiqueta de cada token anterior con un producto interno: cuanto más se parecen, más alto el puntaje. Softmax convierte esos puntajes en pesos que suman 1, y el token se lleva una mezcla de los contenidos, pesada por esos pesos.</p>
+    <p>Solo puede mirar hacia atrás: los tokens que todavía no llegaron quedan tapados por una máscara. Elegí una capa y una cabeza, y tocá un token de la izquierda para ver su cuenta.</p>
+  </div>
+  <div class="lab">
+    <div class="chips" id="chipsCapa" role="group" aria-label="Capa"></div>
+    <div class="chips" id="chipsCabeza" role="group" aria-label="Cabeza"></div>
+    <div class="duo">
+      <div class="panel">
+        <h3 id="matTitulo">Patrón de atención</h3>
+        <div class="matbox"><div class="matriz" id="matriz"></div></div>
+        <p class="small">Cada fila es un token; cada columna, un token anterior. Más oscuro, más peso.</p>
+      </div>
+      <div class="panel">
+        <h3 id="cuentaTitulo">La cuenta de un token</h3>
+        <div class="chain" aria-label="Pasos de la atención"><span class="n">q · k</span><span class="o">→</span><span class="n">máscara</span><span class="o">→</span><span class="n">softmax</span><span class="o">→</span><span class="n on">pesos</span><span class="o">→</span><span class="n">mezcla de v</span></div>
+        <div class="tablebox"><table><thead><tr><th>Mira a</th><th>puntaje q·k</th><th>peso</th><th style="text-align:left"></th></tr></thead><tbody id="cuenta"></tbody></table></div>
+        <p class="small" id="cuentaNota"></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="softmax">
+  <div class="stack prose">
+    <span class="step">Paso 3</span>
+    <h2>Softmax y temperatura</h2>
+    <p>Al final, la red da un puntaje (logit) a cada token posible. Softmax los convierte en probabilidades: exponencial, para que todo quede positivo, y división por la suma, para que todo sume 1. La <b>temperatura</b> divide los puntajes antes de softmax. Con temperatura baja gana casi siempre el favorito; con temperatura alta las opciones se emparejan y el texto se vuelve más sorpresivo.</p>
+  </div>
+  <div class="lab">
+    <div class="slider"><label for="temp">Temperatura</label><input type="range" id="temp" min="0.1" max="2" step="0.05" value="1"><output id="tempOut" for="temp">1,00</output></div>
+    <div class="tablebox"><table><thead><tr><th>Token</th><th>logit z</th><th>z ÷ temperatura</th><th>probabilidad</th><th style="text-align:left"></th></tr></thead><tbody id="tabla"></tbody></table></div>
+    <div class="row"><button class="primary" id="btnTop">Agregar el más probable</button><button id="btnSortear">Sortear uno</button><button id="btnDeshacer">Deshacer</button></div>
+  </div>
+</section>
+
+<section id="escribir">
+  <div class="stack prose">
+    <span class="step">Paso 4</span>
+    <h2>Escribí tu cuento</h2>
+    <p>Escribí un comienzo en el paso 1 y dejá que el modelo siga, un token por vez y con la temperatura del paso 3. Cada token nuevo vuelve a pasar por los 8 bloques. El cuento que se forma pasa a ser la entrada de toda la página.</p>
+  </div>
+  <div class="lab">
+    <div class="row"><button class="primary" id="btnSeguir">Seguir escribiendo</button><button id="btnParar" disabled>Parar</button></div>
+    <div class="toks" id="cuento"></div>
+    <p class="small">Con fondo ámbar, lo que agregó el modelo.</p>
+  </div>
+</section>
+
+<footer>
+  <p><b>El modelo:</b> TinyStories-8M (Eldan y Li, «TinyStories: How Small Can Language Models Be and Still Speak Coherent English?», 2023), de la arquitectura GPT-Neo. Tiene 8 bloques, 16 cabezas de atención por bloque, embeddings de 256 números y 19,7 millones de parámetros, de los cuales 12,9 millones son la tabla de tokens. Se entrenó con <a href="https://huggingface.co/datasets/roneneldan/TinyStories" target="_blank" rel="noopener">TinyStories</a>, cuentos escritos por GPT-3.5 y GPT-4 con un vocabulario que entiende un chico de tres o cuatro años.</p>
+  <p>A diferencia de GPT-2, GPT-Neo no divide los puntajes de atención por la raíz de la dimensión, y la mitad de sus bloques solo mira los últimos 256 tokens. Acá el texto nunca pasa de 256 tokens, así que eso no cambia nada. Para ver un GPT más grande por dentro, el <a href="https://dimacio.github.io/transformer-explainer-es/" target="_blank" rel="noopener">Transformer Explainer en castellano</a>.</p>
+</footer>
+</div>
+
+<script src="gpt.js"></script>
+<script>
+const EJEMPLOS = [
+  "Once upon a time, there was a little ant. The ant liked to crawl around and",
+  "Once upon a time, there was a crane named Bob. Bob was a big bird with a long",
+  "One day, a little girl called Sarah went to the park. She saw some children there playing",
+  "Once upon a time, there was a little bear named Teddy. Teddy loved to play outside in the",
+  "Tom and Sam went to the park. Tom saw a big",
+  "Lily and her mom baked a cake. Lily said, \"Mom, can I",
+  "The cat was very hungry. She looked for",
+  "Once upon a time, there was a little car named Red. Red loved to travel and see new",
+];
+const MAXT = 120;
+const S = { capa: 0, cabeza: 0, fila: null, R: null, ids: [], hist: [], nuevos: 0, generando: false };
+const $ = id => document.getElementById(id);
+const NF2 = new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const pct = v => new Intl.NumberFormat('es-AR', { style: 'percent', maximumFractionDigits: 1 }).format(v);
+const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+const ver = s => s.replace(/\n/g, '↵').replace(/^ /, '·');
+const tokStr = i => Tokenizador.decode([i]);
+
+/* colores desde los tokens del tema */
+const probe = $('probe');
+function tok(n) { probe.style.color = `var(${n})`; return getComputedStyle(probe).color.match(/[\d.]+/g).slice(0, 3).map(Number); }
+let C = {};
+const leerColores = () => { C = { surface: tok('--surface'), sunk: tok('--sunk'), accent: tok('--accent'), amber: tok('--amber'), line: tok('--line') }; };
+const mezcla = (a, b, t) => `rgb(${a.map((v, i) => Math.round(v + (b[i] - v) * t)).join(',')})`;
+const pesosFila = p => { let mx = -Infinity; for (const v of p) if (v > mx) mx = v; const e = Array.from(p, v => Math.exp(v - mx)); const s = e.reduce((a, b) => a + b, 0); return e.map(v => v / s); };
+
+/* ---------- arranque ---------- */
+const ej = $('ejemplos');
+EJEMPLOS.forEach((e, i) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = e.length > 46 ? '…' + e.slice(-44) : e; b.title = e; b.addEventListener('click', () => { $('texto').value = e; S.hist = []; S.nuevos = 0; actualizar(); }); ej.appendChild(b); });
+$('texto').value = EJEMPLOS[0];
+leerColores();
+cargarModelo('modelo', f => { $('cargaPct').textContent = pct(f); }).then(() => { $('carga').hidden = true; armarChips(); actualizar(); })
+  .catch(err => { $('carga').textContent = 'No se pudo cargar el modelo. Revisá la conexión y recargá la página. (' + err.message + ')'; });
+
+let espera = null;
+$('texto').addEventListener('input', () => { S.hist = []; S.nuevos = 0; clearTimeout(espera); espera = setTimeout(actualizar, 250); });
+
+function actualizar() {
+  if (!Red.meta) return;
+  let ids = Tokenizador.encode($('texto').value);
+  if (ids.length > MAXT) { ids = ids.slice(-MAXT); }
+  S.ids = ids;
+  ej.querySelectorAll('button').forEach((b, i) => b.classList.toggle('sel', EJEMPLOS[i] === $('texto').value));
+  if (!ids.length) { $('tokens').innerHTML = ''; $('net').innerHTML = ''; $('matriz').innerHTML = ''; $('cuenta').innerHTML = ''; $('tabla').innerHTML = ''; return; }
+  S.R = correr(ids);
+  if (S.fila === null || S.fila >= ids.length) S.fila = ids.length - 1;
+  pintarTokens(); pintarRed(); pintarAtencion(); pintarSoftmax(); pintarCuento();
+}
+
+/* ---------- paso 1 ---------- */
+function pintarTokens() {
+  $('tokens').innerHTML = S.ids.map(i => `<span class="tk">${esc(ver(tokStr(i)))}<span class="id">${i}</span></span>`).join('');
+}
+function dibujarMatriz(cv, l, h, T) {
+  cv.width = T; cv.height = T; const ctx = cv.getContext('2d'), img = ctx.createImageData(T, T);
+  for (let i = 0; i < T; i++) {
+    const w = pesosFila(S.R.filas[i][l][h]);
+    for (let j = 0; j < T; j++) {
+      const col = j <= i ? mezcla(C.surface, C.accent, Math.sqrt(w[j])) : `rgb(${C.sunk.join(',')})`;
+      const m = col.match(/\d+/g).map(Number), k = (i * T + j) * 4;
+      img.data[k] = m[0]; img.data[k + 1] = m[1]; img.data[k + 2] = m[2]; img.data[k + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+}
+function pintarRed() {
+  const T = S.ids.length, NL = Red.meta.capas, NH = Red.meta.cabezas;
+  const net = $('net');
+  let html = `<div class="layer"><span class="lbl">Entrada</span><span class="dims">${T} tokens</span><div class="lista">${S.ids.map(i => `<span>${esc(ver(tokStr(i)))}</span>`).join('')}</div></div>`;
+  for (let l = 0; l < NL; l++) {
+    html += `<div class="layer"><span class="lbl">Bloque ${l + 1}</span><span class="tipo">${Red.meta.tipos[l] === 'global' ? 'mira todo' : 'mira cerca'}</span><div class="heads16">`;
+    for (let h = 0; h < NH; h++) html += `<button class="head" type="button" data-l="${l}" data-h="${h}" aria-label="Bloque ${l + 1}, cabeza ${h + 1}"><canvas></canvas></button>`;
+    html += `</div></div>`;
+  }
+  html += `<div class="layer"><span class="lbl">Próximo token</span><span class="dims">50.257 posibles</span><div class="bars" id="barras"></div></div>`;
+  net.innerHTML = html;
+  net.querySelectorAll('.head').forEach(b => { dibujarMatriz(b.querySelector('canvas'), +b.dataset.l, +b.dataset.h, T); b.classList.toggle('sel', +b.dataset.l === S.capa && +b.dataset.h === S.cabeza); });
+  const p = softmax(S.R.logits), top = topK(p, 10);
+  $('barras').innerHTML = top.map((i, k) => `<div class="bar${k === 0 ? ' top' : ''}"><b>${esc(ver(tokStr(i)))}</b><i style="width:${Math.max(.5, p[i] * 100)}%"></i><span>${pct(p[i])}</span></div>`).join('');
+}
+$('net').addEventListener('click', e => { const b = e.target.closest('.head'); if (!b) return; S.capa = +b.dataset.l; S.cabeza = +b.dataset.h; marcarCabeza(); pintarAtencion(); $('atencion').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); });
+function topK(p, k) { const idx = []; for (let i = 0; i < p.length; i++) { if (idx.length < k) { idx.push(i); idx.sort((a, b) => p[b] - p[a]); } else if (p[i] > p[idx[k - 1]]) { idx[k - 1] = i; idx.sort((a, b) => p[b] - p[a]); } } return idx; }
+
+/* ---------- paso 2 ---------- */
+function armarChips() {
+  const NL = Red.meta.capas, NH = Red.meta.cabezas;
+  $('chipsCapa').innerHTML = '<span class="grp">Bloque</span>' + [...Array(NL)].map((_, l) => `<button type="button" data-l="${l}">${l + 1}</button>`).join('');
+  $('chipsCabeza').innerHTML = '<span class="grp">Cabeza</span>' + [...Array(NH)].map((_, h) => `<button type="button" data-h="${h}">${h + 1}</button>`).join('');
+  $('chipsCapa').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.capa = +b.dataset.l; marcarCabeza(); pintarAtencion(); });
+  $('chipsCabeza').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.cabeza = +b.dataset.h; marcarCabeza(); pintarAtencion(); });
+}
+function marcarCabeza() {
+  document.querySelectorAll('#chipsCapa button').forEach(b => { const on = +b.dataset.l === S.capa; b.classList.toggle('sel', on); b.setAttribute('aria-pressed', String(on)); });
+  document.querySelectorAll('#chipsCabeza button').forEach(b => { const on = +b.dataset.h === S.cabeza; b.classList.toggle('sel', on); b.setAttribute('aria-pressed', String(on)); });
+  document.querySelectorAll('#net .head').forEach(b => b.classList.toggle('sel', +b.dataset.l === S.capa && +b.dataset.h === S.cabeza));
+}
+function pintarAtencion() {
+  if (!S.R) return; marcarCabeza();
+  const T = S.ids.length, l = S.capa, h = S.cabeza, m = $('matriz');
+  $('matTitulo').textContent = `Bloque ${l + 1}, cabeza ${h + 1}`;
+  m.style.gridTemplateColumns = `minmax(3rem,7rem) repeat(${T}, minmax(10px,1fr))`;
+  let html = '';
+  for (let i = 0; i < T; i++) {
+    const w = pesosFila(S.R.filas[i][l][h]);
+    html += `<span class="rl${i === S.fila ? ' sel' : ''}" data-i="${i}" title="${esc(tokStr(S.ids[i]))}">${esc(ver(tokStr(S.ids[i])))}</span>`;
+    for (let j = 0; j < T; j++) html += `<span class="c" data-i="${i}" style="background:${j <= i ? mezcla(C.surface, C.accent, Math.sqrt(w[j])) : `rgb(${C.sunk.join(',')})`}" title="${j <= i ? pct(w[j]) : 'tapado por la máscara'}"></span>`;
+  }
+  m.innerHTML = html;
+  pintarCuenta();
+}
+$('matriz').addEventListener('click', e => { const el = e.target.closest('[data-i]'); if (!el) return; S.fila = +el.dataset.i; pintarAtencion(); });
+function pintarCuenta() {
+  const i = S.fila, l = S.capa, h = S.cabeza, sc = S.R.filas[i][l][h], w = pesosFila(sc);
+  $('cuentaTitulo').textContent = `La cuenta de «${ver(tokStr(S.ids[i]))}» (token ${i + 1})`;
+  const orden = [...w.keys()].sort((a, b) => w[b] - w[a]);
+  $('cuenta').innerHTML = orden.map(j => `<tr class="${j === i ? 'yo' : ''}"><td>${esc(ver(tokStr(S.ids[j])))}${j === i ? ' (sí mismo)' : ''}</td><td>${NF2.format(sc[j])}</td><td>${pct(w[j])}</td><td class="pbar"><i style="width:${Math.max(.5, w[j] * 100)}%"></i></td></tr>`).join('');
+  const futuros = S.ids.length - 1 - i;
+  $('cuentaNota').textContent = `Puede mirar ${i + 1} token${i ? 's' : ''}. ${futuros ? `Los ${futuros} que vienen después quedan tapados por la máscara.` : 'Es el último token: de su cuenta sale la predicción.'} Los pesos son el softmax de los puntajes.`;
+}
+
+/* ---------- paso 3 ---------- */
+const temp = $('temp');
+function probsT() { const T = +temp.value; return softmax(S.R.logits.map(z => z / T)); }
+function pintarSoftmax() {
+  const T = +temp.value; $('tempOut').textContent = NF2.format(T);
+  const p = probsT(), top = topK(p, 10);
+  $('tabla').innerHTML = top.map(i => `<tr><td>${esc(ver(tokStr(i)))}</td><td>${NF2.format(S.R.logits[i])}</td><td>${NF2.format(S.R.logits[i] / T)}</td><td>${pct(p[i])}</td><td class="pbar"><i style="width:${Math.max(.5, p[i] * 100)}%"></i></td></tr>`).join('');
+}
+temp.addEventListener('input', () => { if (S.R) pintarSoftmax(); });
+function agregar(id) { S.hist.push($('texto').value); $('texto').value += tokStr(id); S.nuevos++; actualizar(); }
+function sortear(p) { let r = Math.random(), i = 0; for (; i < p.length - 1; i++) { r -= p[i]; if (r <= 0) break; } return i; }
+$('btnTop').addEventListener('click', () => { if (S.R) agregar(topK(probsT(), 1)[0]); });
+$('btnSortear').addEventListener('click', () => { if (S.R) agregar(sortear(probsT())); });
+$('btnDeshacer').addEventListener('click', () => { if (S.hist.length) { $('texto').value = S.hist.pop(); S.nuevos = Math.max(0, S.nuevos - 1); actualizar(); } });
+
+/* ---------- paso 4 ---------- */
+function pintarCuento(extra = []) {
+  const n = S.ids.length, nuevos = Math.min(S.nuevos, n);
+  $('cuento').innerHTML = [...S.ids, ...extra].map((id, k) => `<span class="tk${k >= n - nuevos ? ' nuevo' : ''}">${esc(ver(tokStr(id)))}</span>`).join('');
+}
+$('btnSeguir').addEventListener('click', async () => {
+  if (!S.R || S.generando) return;
+  S.generando = true; $('btnSeguir').disabled = true; $('btnParar').disabled = false;
+  // seguimos desde la caché de la última corrida, un token por vez
+  const c = S.R.cache; let logits = S.R.logits; const gen = []; const T = +temp.value;
+  for (let k = 0; k < 40 && S.generando && c.n < MAXT; k++) {
+    const id = sortear(softmax(logits.map(z => z / T))); gen.push(id); S.nuevos++;
+    pintarCuento(gen);
+    logits = paso(id, c, true).logits;
+    await new Promise(r => setTimeout(r, 10));
+  }
+  S.hist.push($('texto').value); $('texto').value += Tokenizador.decode(gen);
+  S.generando = false; $('btnSeguir').disabled = false; $('btnParar').disabled = true;
+  actualizar();
+});
+$('btnParar').addEventListener('click', () => { S.generando = false; });
+
+const repintar = () => { leerColores(); if (S.R) { pintarRed(); pintarAtencion(); } };
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', repintar);
+new MutationObserver(repintar).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+</script>
+</body>
+</html>

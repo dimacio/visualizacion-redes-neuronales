@@ -1,0 +1,682 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>CNN a la vista</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: columna de lectura (~68ch) con laboratorios más anchos; la página sigue un dígito capa por capa, de la entrada a la salida.
+   Paleta y tipos tomados del «Laboratorio de convolución» de UCEMA, para que las herramientas del curso se vean como una familia. */
+:root{
+  --bg:#fbfafc; --surface:#ffffff; --sunk:#f2eff7; --line:#e2dcea;
+  --fg:#1b1f3b; --muted:#666a85;
+  --accent:#6a3fa0; --accent-soft:rgba(106,63,160,.13);
+  --amber:#c9851c; --ok:#1f8a7e; --bad:#c94e33;
+  --pos:#6a3fa0; --neg:#c94e33;
+  --display:"Source Serif 4", Cambria, Georgia, serif;
+  --body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#15131c; --surface:#1d1a27; --sunk:#252134; --line:#363048;
+  --fg:#ece9f3; --muted:#a6a2b8;
+  --accent:#b18ae6; --accent-soft:rgba(177,138,230,.16);
+  --amber:#e6a94a; --ok:#4cc2b2; --bad:#ec7f63; --pos:#b18ae6; --neg:#ec7f63; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#15131c; --surface:#1d1a27; --sunk:#252134; --line:#363048;
+  --fg:#ece9f3; --muted:#a6a2b8;
+  --accent:#b18ae6; --accent-soft:rgba(177,138,230,.16);
+  --amber:#e6a94a; --ok:#4cc2b2; --bad:#ec7f63; --pos:#b18ae6; --neg:#ec7f63; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:16px/1.6 var(--body);margin:0}
+.wrap{max-width:1080px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 64px}
+.prose{max-width:68ch}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;line-height:1.2;margin:0}
+h1{font-size:clamp(2rem,5vw,3rem);font-weight:700}
+h2{font-size:clamp(1.5rem,3.4vw,2rem);font-weight:700}
+p{margin:0}
+.stack{display:flex;flex-direction:column;gap:12px}
+.eyebrow{font:500 .78rem/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--amber)}
+.lead{font-size:1.12rem;color:var(--muted)}
+.small{font-size:.88rem;color:var(--muted)}
+header.top{display:flex;flex-direction:column;gap:14px;padding-block:12px 28px;border-bottom:1px solid var(--line)}
+.tl{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.tl a{display:flex;gap:8px;align-items:baseline;text-decoration:none;color:var(--fg);background:var(--sunk);border:1px solid var(--line);padding:6px 12px;border-radius:999px;font-size:.88rem}
+.tl a b{font:500 .85rem var(--mono);color:var(--accent)}
+.tl a:hover,.tl a:focus-visible{border-color:var(--accent);outline:none}
+section{display:flex;flex-direction:column;gap:18px;padding-block:44px 8px}
+.step{font:500 .85rem var(--mono);color:var(--accent)}
+.lab{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:18px;min-width:0}
+.panel{display:flex;flex-direction:column;gap:8px;min-width:0}
+.panel h3,.lbl{font:600 .78rem var(--body);text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.dims{font:500 .76rem var(--mono);color:var(--amber);font-variant-numeric:tabular-nums}
+button{font:500 .9rem var(--body);border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:8px;padding:7px 12px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);color:var(--bg);border-color:var(--accent)}
+button:focus-visible,canvas:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+canvas{display:block;image-rendering:pixelated;max-width:100%;border-radius:4px;background:var(--sunk)}
+
+/* ejemplos */
+.picker{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:6px;max-width:520px}
+.picker button{padding:2px;border-radius:6px;position:relative;line-height:0}
+.picker button canvas{width:100%;aspect-ratio:1/1;border-radius:4px}
+.picker button.sel{border-color:var(--amber);box-shadow:0 0 0 2px var(--amber)}
+.picker button.err::after{content:"";position:absolute;top:3px;right:3px;width:7px;height:7px;border-radius:50%;background:var(--bad)}
+
+/* la red de un vistazo */
+.netbox{overflow-x:auto;min-width:0}
+.net{display:grid;grid-template-columns:auto 18px auto 18px auto 18px auto 18px auto 18px minmax(150px,1fr);align-items:start;gap:8px;min-width:820px}
+.arrow{align-self:center;color:var(--muted);font:500 1rem var(--mono);text-align:center}
+.layer{display:flex;flex-direction:column;gap:8px;min-width:0}
+.maps{display:grid;gap:6px}
+.maps.c1{grid-template-columns:repeat(1,64px)}
+.maps.p1{grid-template-columns:repeat(1,48px)}
+.maps.c2{grid-template-columns:repeat(2,48px)}
+.maps.p2{grid-template-columns:repeat(2,34px)}
+.map{padding:0;border:0;background:none;border-radius:4px;line-height:0;cursor:pointer}
+.map canvas{width:100%;aspect-ratio:1/1}
+.map.sel{outline:2px solid var(--amber);outline-offset:2px}
+.map:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.inbig{width:112px}
+.inbig canvas{width:112px;aspect-ratio:1/1}
+.bars{display:flex;flex-direction:column;gap:4px}
+.bar{display:grid;grid-template-columns:1.2rem minmax(0,1fr) 3.2rem;gap:8px;align-items:center;font:500 .85rem var(--mono);font-variant-numeric:tabular-nums}
+.bar i{display:block;height:12px;border-radius:3px;background:var(--line);min-width:2px}
+.bar.win i{background:var(--accent)}
+.bar.win b{color:var(--accent)}
+.bar span:last-child{text-align:right}
+.verdict{font:700 1.25rem var(--display)}
+.verdict.badv{color:var(--bad)}
+.next{background:var(--accent-soft);border-radius:12px;padding:14px 16px;max-width:68ch}
+
+/* un mapa por dentro */
+.chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.chips .grp{font:600 .74rem var(--body);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-right:2px}
+.chips .sep{width:1px;height:28px;background:var(--line);margin-inline:6px}
+.chip{display:flex;gap:6px;align-items:center;padding:4px 8px}
+.chip canvas{width:22px;height:22px;border-radius:3px}
+.chip.sel{background:var(--accent-soft);border-color:var(--accent)}
+.duo{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px}
+@media (max-width:760px){.duo{grid-template-columns:minmax(0,1fr)}}
+.mapbox{position:relative;line-height:0;max-width:340px;width:100%}
+.mapbox canvas{width:100%;aspect-ratio:1/1}
+.hl{position:absolute;border:2px solid var(--amber);border-radius:2px;pointer-events:none;box-shadow:0 0 0 1px var(--surface)}
+.hl.out{border-color:var(--accent)}
+.quad{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;max-width:340px}
+.quad .mapbox{max-width:none}
+.quad figure{margin:0;display:flex;flex-direction:column;gap:4px;min-width:0}
+figcaption{font:500 .74rem var(--mono);color:var(--muted)}
+.outmap{cursor:crosshair;touch-action:none}
+
+/* cadena de nodos */
+.chain{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.node{background:var(--sunk);border:1px solid var(--line);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:6px;align-items:center;min-width:0}
+.node .nt{font:600 .7rem var(--body);text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.node .nv{font:500 1.05rem var(--mono);font-variant-numeric:tabular-nums}
+.node.res{border-color:var(--accent);background:var(--accent-soft)}
+.op{font:500 1.15rem var(--mono);color:var(--muted)}
+.g3{display:grid;grid-template-columns:repeat(3,minmax(0,3.3rem));gap:3px}
+.g3 span{font:500 .78rem var(--mono);text-align:center;padding:4px 0;border-radius:4px;font-variant-numeric:tabular-nums;color:var(--fg)}
+.g3.sm{grid-template-columns:repeat(3,minmax(0,2.7rem))}
+.g3.sm span{font-size:.68rem;padding:2px 0}
+.chrows{display:flex;flex-direction:column;gap:8px}
+.chrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.chrow .tag{font:600 .72rem var(--mono);color:var(--muted);min-width:4.6rem}
+.formula{font:500 .95rem var(--mono);background:var(--sunk);border-radius:8px;padding:10px 12px;overflow-x:auto;white-space:normal;font-variant-numeric:tabular-nums}
+
+/* pooling y softmax */
+.pool4{display:grid;grid-template-columns:repeat(2,3.6rem);gap:4px}
+.pool4 span{font:500 .85rem var(--mono);text-align:center;padding:8px 0;border-radius:6px;background:var(--sunk);font-variant-numeric:tabular-nums}
+.pool4 span.max{background:var(--accent-soft);color:var(--accent);font-weight:600;outline:1.5px solid var(--accent)}
+.tablebox{overflow-x:auto;min-width:0}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums;font-size:.9rem}
+th,td{padding:5px 8px;text-align:right;border-bottom:1px solid var(--line);font-family:var(--mono)}
+th{font:600 .74rem var(--body);text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+td:first-child,th:first-child{text-align:center}
+tr.cls{cursor:pointer}
+tr.cls:hover td{background:var(--sunk)}
+tr.cls.sel td{background:var(--accent-soft)}
+td.pbar{width:40%;text-align:left}
+td.pbar i{display:block;height:10px;border-radius:3px;background:var(--accent);min-width:1px}
+.w8{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px;max-width:520px}
+.w8 figure{margin:0;display:flex;flex-direction:column;gap:3px;min-width:0}
+.w8 canvas{width:100%;aspect-ratio:1/1}
+.w8 figcaption{font-size:.64rem;text-align:center}
+@media (max-width:520px){.w8{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:.82rem;color:var(--muted);align-items:center}
+.sw{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px}
+
+/* dibujar */
+.drawrow{display:grid;grid-template-columns:minmax(0,300px) minmax(0,120px) minmax(0,1fr);gap:22px;align-items:start}
+@media (max-width:760px){.drawrow{grid-template-columns:minmax(0,1fr)}}
+#pad{width:100%;aspect-ratio:1/1;cursor:crosshair;touch-action:none;background:var(--surface);border:1px solid var(--line)}
+#padIn{width:100%;max-width:120px;aspect-ratio:1/1}
+footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);font-size:.85rem;color:var(--muted);display:flex;flex-direction:column;gap:8px}
+footer a,.prose a{color:var(--accent)}
+code{font-family:var(--mono);font-size:.9em}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+@media (max-width:760px){
+  .net{grid-template-columns:minmax(0,1fr);min-width:0}
+  .arrow{transform:rotate(90deg);justify-self:start;margin-left:20px}
+  .maps.c1,.maps.p1,.maps.c2,.maps.p2{grid-template-columns:repeat(8,minmax(0,44px))}
+}
+</style>
+</head>
+<body>
+<span id="probe" hidden></span>
+<div class="wrap">
+<header class="top">
+  <span class="eyebrow">Introducción a la IA · Clase 1 · Redes convolucionales</span>
+  <h1>CNN a la vista</h1>
+  <p class="lead prose">Una red convolucional chica, entrenada con 60.000 dígitos escritos a mano (MNIST). Elegí un dígito y seguilo capa por capa: cada filtro recorre la imagen, cada mapa muestra dónde encontró lo que busca, y al final diez números dicen qué dígito cree la red que es.</p>
+  <nav class="tl" aria-label="Secciones">
+    <a href="#vistazo"><b>1</b> La red de un vistazo</a>
+    <a href="#adentro"><b>2</b> Un mapa por dentro</a>
+    <a href="#salida"><b>3</b> Pooling y softmax</a>
+    <a href="#dibujar"><b>4</b> Dibujá tu dígito</a>
+  </nav>
+</header>
+
+<section id="vistazo">
+  <div class="stack prose">
+    <span class="step">Paso 1</span>
+    <h2>La red de un vistazo</h2>
+    <p>Cada cuadrado es un <b>mapa de activación</b>: cuanto más intenso el color, más fuerte respondió ese filtro en ese lugar de la imagen. Las imágenes se achican capa a capa y los mapas se multiplican. Tocá cualquier mapa para abrirlo en el paso 2.</p>
+    <p>La red hace dos cosas con los mismos pesos. Los <b>filtros</b> son su <b>memoria</b>: guardan los rasgos que aprendió de 60.000 dígitos, como bordes y trazos. Deslizar, sumar y elegir el máximo es su <b>procesamiento</b>. Mirar los mapas es una forma de auditar qué rasgos encontró.</p>
+  </div>
+  <div class="lab">
+    <div class="panel">
+      <h3>Dígitos de prueba</h3>
+      <div class="picker" id="picker" role="group" aria-label="Dígitos de prueba"></div>
+      <p class="small">Son dígitos que la red no vio durante el entrenamiento. Un punto rojo marca los que clasifica mal.</p>
+    </div>
+    <div class="netbox">
+      <div class="net" id="net">
+        <div class="layer"><span class="lbl">Entrada</span><span class="dims">28×28×1</span><div class="inbig"><canvas id="ovIn" width="28" height="28" aria-label="Imagen de entrada"></canvas></div></div>
+        <span class="arrow" aria-hidden="true">→</span>
+        <div class="layer"><span class="lbl">Conv 1 + ReLU</span><span class="dims">26×26×4 · 40 pesos</span><div class="maps c1" id="ovC1"></div></div>
+        <span class="arrow" aria-hidden="true">→</span>
+        <div class="layer"><span class="lbl">Pool</span><span class="dims">13×13×4</span><div class="maps p1" id="ovP1"></div></div>
+        <span class="arrow" aria-hidden="true">→</span>
+        <div class="layer"><span class="lbl">Conv 2 + ReLU</span><span class="dims">11×11×8 · 296 pesos</span><div class="maps c2" id="ovC2"></div></div>
+        <span class="arrow" aria-hidden="true">→</span>
+        <div class="layer"><span class="lbl">Pool</span><span class="dims">5×5×8 = 200</span><div class="maps p2" id="ovP2"></div></div>
+        <span class="arrow" aria-hidden="true">→</span>
+        <div class="layer"><span class="lbl">Densa + softmax</span><span class="dims">10 · 2.010 pesos</span><div class="bars" id="ovBars"></div><div class="verdict" id="ovVerdict"></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="adentro">
+  <div class="stack prose">
+    <span class="step">Paso 2</span>
+    <h2>Un mapa por dentro</h2>
+    <p>Cada píxel del mapa sale de la misma cuenta. Se toma el parche de 3×3 que queda debajo del filtro, se multiplica casilla por casilla por los 9 pesos del filtro, se suma, se le agrega un sesgo <i>b</i>, y al final ReLU deja pasar los positivos y convierte los negativos en cero. El filtro es el mismo en todas las posiciones: por eso la red necesita tan pocos pesos.</p>
+    <p>En la capa 2 cada filtro mira los 4 mapas de la capa anterior a la vez. Tiene 4 × 9 = 36 pesos y suma las cuatro cuentas.</p>
+  </div>
+  <div class="lab">
+    <div class="chips" id="chips" role="group" aria-label="Elegir filtro"></div>
+    <div class="row">
+      <button class="primary" id="btnSlide">Deslizar el filtro</button>
+      <button id="btnFull">Ver el mapa completo</button>
+      <span class="small">Pasá el mouse o tocá el mapa de salida para elegir una posición. Con el mapa enfocado, también funcionan las flechas.</span>
+    </div>
+    <div class="duo">
+      <div class="panel">
+        <h3 id="inTitle">Entrada del filtro</h3>
+        <div id="inHolder"></div>
+      </div>
+      <div class="panel">
+        <h3 id="outTitle">Mapa de salida</h3>
+        <div class="mapbox"><canvas id="outMap" class="outmap" tabindex="0" aria-label="Mapa de salida; elegí una posición"></canvas><div class="hl out" id="outHl"></div></div>
+        <span class="dims" id="outPos"></span>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>La cuenta en esta posición, nodo por nodo</h3>
+      <div id="chain"></div>
+    </div>
+    <div class="legend"><span><i class="sw" style="background:var(--pos)"></i>peso positivo</span><span><i class="sw" style="background:var(--neg)"></i>peso negativo</span><span><i class="sw" style="background:var(--amber)"></i>parche que mira el filtro</span></div>
+  </div>
+</section>
+
+<section id="salida">
+  <div class="stack prose">
+    <span class="step">Paso 3</span>
+    <h2>Pooling y softmax</h2>
+    <p><b>Max pooling</b> se queda con el valor más alto de cada bloque de 2×2. El mapa queda a la mitad de ancho y de alto, y si el trazo se corre un píxel, el resultado casi no cambia. Pasá el mouse por el mapa reducido.</p>
+  </div>
+  <div class="lab">
+    <div class="duo">
+      <div class="panel">
+        <h3 id="poolInTitle">Mapa después de ReLU</h3>
+        <div class="mapbox"><canvas id="poolIn" aria-label="Mapa antes del pooling"></canvas><div class="hl" id="poolHl"></div></div>
+      </div>
+      <div class="panel">
+        <h3 id="poolOutTitle">Después del pooling</h3>
+        <div class="mapbox"><canvas id="poolOut" class="outmap" tabindex="0" aria-label="Mapa después del pooling; elegí una posición"></canvas><div class="hl out" id="poolOutHl"></div></div>
+        <div class="chain"><div class="node"><span class="nt">Bloque 2×2</span><div class="pool4" id="pool4"></div></div><span class="op">→</span><div class="node"><span class="nt">máx</span><span class="nv" id="poolMax"></span></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="stack prose">
+    <p>Los 8 mapas de 5×5 se aplanan en 200 números. Cada una de las 10 neuronas de salida multiplica esos 200 números por sus propios 200 pesos, suma y agrega un sesgo: eso es el <b>logit</b>. <b>Softmax</b> convierte los 10 logits en probabilidades en dos pasos: exponencial, para que todo quede positivo, y división por la suma, para que todo sume 1.</p>
+  </div>
+  <div class="lab">
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Dígito</th><th>logit z</th><th>e<sup>z</sup></th><th>e<sup>z</sup> ÷ Σ</th><th style="text-align:left">probabilidad</th></tr></thead>
+        <tbody id="smBody"></tbody>
+      </table>
+    </div>
+    <p class="small" id="smSum"></p>
+    <div class="panel">
+      <h3 id="wTitle">Pesos de la neurona del dígito</h3>
+      <div class="w8" id="wMaps"></div>
+      <h3 id="cTitle">Aporte al logit: rasgo × peso</h3>
+      <div class="w8" id="cMaps"></div>
+      <div class="formula" id="cFormula"></div>
+      <p class="small">Tocá una fila de la tabla para ver otra neurona. Cada uno de los 8 pares es un mapa del pooling (5×5) con sus pesos: morado suma a favor de ese dígito, rojo resta.</p>
+    </div>
+  </div>
+</section>
+
+<section id="dibujar">
+  <div class="stack prose">
+    <span class="step">Paso 4</span>
+    <h2>Dibujá tu dígito</h2>
+    <p>Dibujá con el mouse o con el dedo. La red recibe tu trazo achicado a una caja de 20×20 y centrado, como se prepararon los dígitos de MNIST. Lo que dibujes pasa a ser la entrada de toda la página, así que podés volver a los pasos 1 a 3 para seguirlo.</p>
+    <p>Esta red es chica a propósito: se entrena en segundos y se equivoca más que una red bien armada. Probá un 7 con palito, un 1 inclinado o un 4 abierto arriba.</p>
+  </div>
+  <div class="lab">
+    <div class="drawrow">
+      <div class="panel">
+        <h3>Tu trazo</h3>
+        <canvas id="pad" width="28" height="28" aria-label="Lienzo para dibujar un dígito"></canvas>
+        <div class="row"><button id="btnClear">Borrar</button></div>
+      </div>
+      <div class="panel">
+        <h3>Lo que entra a la red</h3>
+        <canvas id="padIn" width="28" height="28" aria-label="Imagen centrada que recibe la red"></canvas>
+        <span class="dims">28×28</span>
+      </div>
+      <div class="panel">
+        <h3>Salida</h3>
+        <div class="bars" id="padBars"></div>
+        <div class="verdict" id="padVerdict"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="next" style="margin-top:36px"><p><b>Lo que viene.</b> Un modelo de lenguaje también tiene memoria y procesamiento. En vez de filtros que guardan trazos, tiene embeddings que guardan rasgos de cada pedazo de palabra, y pesos que guardan, borrosos, los textos que leyó.</p></div>
+
+<footer>
+  <p><b>La red:</b> 28×28 → conv 3×3 con 4 filtros → ReLU → max pooling → conv 3×3 con 8 filtros → ReLU → max pooling → densa de 10 → softmax. En total, 2.346 pesos. Se entrenó una época sobre los 60.000 dígitos de MNIST y acierta el <span id="accTxt"></span> de los 10.000 de prueba. Es la misma arquitectura que la demo del notebook de la clase.</p>
+  <p>Inspirado en <a href="https://poloclub.github.io/cnn-explainer/" target="_blank" rel="noopener">CNN Explainer</a> (Wang y otros, 2020), que muestra una red más grande sobre fotos en color. Para la intuición de fondo: la serie <a href="https://www.3blue1brown.com/topics/neural-networks" target="_blank" rel="noopener">Neural Networks</a> de 3Blue1Brown, que usa el mismo MNIST.</p>
+</footer>
+</div>
+
+<script>
+const D = {"arch":"28x28 > conv3x3x4 > ReLU > maxpool2 > conv3x3x8 > ReLU > maxpool2 > densa10 > softmax","test_acc":0.9679,"W1":[[[-0.2184,-0.2449,-0.595],[-0.6706,-0.0949,-0.0663],[0.904,0.1586,0.0026]],[[-0.2394,0.2328,-0.3322],[-0.1864,0.0945,0.936],[0.285,0.428,0.5644]],[[0.5905,0.894,0.1299],[-0.5222,0.3421,0.0301],[-0.8777,-0.9083,-0.2384]],[[0.1036,0.6307,0.2943],[-0.3537,0.7393,0.4836],[-0.4428,0.1894,0.4313]]],"b1":[-0.0056,0.0006,0.1355,-0.0897],"W2":[[[[-0.2637,0.449,0.2897],[0.1966,0.1616,-0.8106],[0.21,-0.4265,-0.1034]],[[0.2846,0.118,-0.5079],[0.3144,0.1984,0.2072],[-0.3724,-0.5883,0.4057]],[[-0.196,-0.41,0.3969],[-0.3339,0.0708,-0.041],[0.6487,0.199,-0.1031]],[[-0.0543,-0.0159,-0.0847],[0.1386,0.1387,0.0058],[0.3457,-0.8702,-0.095]]],[[[-0.0857,-0.5673,-0.3736],[0.2479,-0.1196,-0.2902],[-0.3936,-0.1726,0.6177]],[[0.1441,0.2117,-0.1986],[-0.0865,-0.3248,-0.209],[-0.483,-0.1315,0.461]],[[0.3908,0.4394,0.4622],[0.606,0.1111,0.3073],[0.2215,-0.1764,0.0622]],[[0.0644,0.1167,-0.1651],[-0.0108,-0.3452,-0.8306],[-0.5588,-0.2171,0.1003]]],[[[0.3057,0.0178,-0.2705],[-0.5614,-0.4899,-0.0322],[-0.3752,0.036,0.0055]],[[0.5149,0.0595,-0.1971],[0.157,0.0941,0.1811],[-0.6047,0.858,0.3952]],[[-0.5352,0.134,0.3009],[-0.0935,0.2022,0.0862],[-0.105,-0.4178,-0.0788]],[[0.4621,0.0502,-0.2819],[-0.1651,-0.5538,-0.116],[0.2183,-0.2498,-0.0697]]],[[[0.5172,0.2394,-0.1314],[0.4635,-0.0036,0.408],[-0.2843,0.0701,0.2997]],[[0.6163,0.5872,0.2366],[0.2082,0.0679,-0.0633],[-0.5002,0.0168,-0.914]],[[0.0071,0.0791,0.1607],[0.2166,0.2313,0.2815],[0.9156,0.6206,0.1824]],[[-0.1562,0.133,0.1253],[-0.4931,-0.2067,0.369],[0.1649,-0.2498,0.3162]]],[[[-0.5597,-0.179,-0.2201],[-0.2346,-0.1504,-0.4061],[-0.3665,-0.4812,-0.0747]],[[0.5876,0.1246,-0.0933],[0.3034,-0.3138,-0.2065],[0.5134,-0.0527,0.1093]],[[0.0056,-0.4123,0.2199],[-0.5815,-0.3755,-0.1382],[-0.3708,-0.1052,0.0686]],[[0.3302,0.1724,-0.2052],[0.3476,0.2299,-0.3009],[0.0865,-0.1299,-0.0274]]],[[[0.4667,-0.0551,-0.1365],[-0.211,-0.2387,-0.4478],[0.0621,-0.0378,-0.2775]],[[0.2984,-0.0176,0.1465],[-0.1869,0.3356,0.3931],[-0.1519,-0.1821,0.132]],[[0.3494,0.6203,0.2882],[-0.0774,0.182,-0.4025],[-0.4539,-0.1905,-0.3855]],[[0.052,0.098,-0.1213],[-0.1685,0.1713,0.4355],[-0.1373,0.2567,0.0114]]],[[[0.3353,0.1206,-0.7438],[-0.5236,-0.1623,-0.2834],[-0.5583,-0.1762,-0.4109]],[[0.3636,-0.4532,0.3067],[-0.1768,-0.6452,0.3878],[0.1645,-0.4046,0.0265]],[[-0.303,0.1249,0.0705],[-0.0103,-0.0969,-0.3269],[0.3411,0.0153,0.5218]],[[0.6688,-0.5564,-0.1258],[0.0352,-0.5341,0.5146],[-0.1213,-0.5712,0.0043]]],[[[0.2298,0.0984,0.7328],[0.3528,0.154,0.4711],[0.1855,0.4309,0.5292]],[[-0.1402,-0.0908,-0.0766],[-0.2407,-0.1463,0.5761],[-0.3124,-0.2403,-0.1658]],[[0.097,0.5882,-0.2587],[-0.0987,0.6683,0.9558],[-0.0448,-0.1868,0.2432]],[[0.4191,-0.0939,0.0347],[-0.0612,0.5866,0.1682],[0.3777,-0.5822,0.154]]]],"b2":[0.0503,0.2664,0.0596,-0.1633,-0.018,-0.0966,0.2836,-0.1744],"W3":[[0.1233,0.0868,-0.0394,0.0193,-0.2485,-0.1686,-0.1599,-0.0703,-0.1607,0.0034,0.2001,-0.2061,0.0537,-0.0861,-0.0723,-0.0728,-0.0999,0.139,0.204,0.0023,0.0341,0.1197,-0.1395,-0.1062,-0.1781,-0.1779,0.0718,-0.0978,-0.0106,0.0021,-0.3263,0.0146,-0.2708,-0.03,-0.0923,-0.2114,0.0406,0.0811,-0.2531,0.0079,0.2044,-0.0189,0.0641,-0.0421,0.1128,0.009,-0.1807,-0.0339,0.037,0.1017,-0.0066,-0.145,0.055,0.0389,-0.2323,-0.1715,-0.1232,-0.2557,-0.0556,0.0278,0.0392,0.0472,0.2356,-0.0494,-0.2086,-0.2255,-0.157,-0.0373,-0.1054,0.0114,-0.0616,0.2333,-0.0734,-0.3541,0.3137,-0.2992,-0.0708,0.3713,-0.0546,0.1421,0.1454,-0.2157,0.0703,-0.0869,0.0693,0.1436,-0.2759,-0.0187,-0.0294,-0.3985,-0.0219,0.0458,0.2014,-0.1364,0.084,-0.0325,0.1191,0.2397,-0.0965,0.016,0.2108,-0.2424,0.447,-0.2322,-0.1494,0.0274,-0.1488,-0.2434,-0.0667,0.2058,0.2327,0.2157,-0.1532,-0.3037,0.1217,-0.202,0.1671,0.275,0.0431,0.1835,-0.3976,-0.0762,-0.212,-0.1772,0.1589,0.1962,0.2016,-0.0923,-0.0562,-0.3424,0.0368,-0.0468,0.2386,-0.026,0.1829,-0.2244,0.305,-0.1058,0.2477,-0.2853,0.1263,-0.293,0.463,-0.2266,0.2535,0.0826,-0.2225,-0.1458,-0.1823,-0.0636,-0.2103,-0.1263,0.1502,-0.1057,0.0904,-0.0482,-0.1214,-0.1634,0.1352,-0.0382,-0.0856,0.0563,-0.2061,-0.0004,-0.1015,-0.0808,-0.0479,0.1119,-0.3151,-0.4828,0.1679,0.1175,0.0808,0.1458,-0.0151,0.0404,0.0402,-0.1434,0.3315,-0.045,-0.0776,0.057,-0.3198,-0.0256,0.1193,0.0171,-0.1109,0.0502,-0.1269,-0.1216,-0.1909,0.0282,0.076,0.355,-0.0445,0.243,-0.1677,-0.0135,-0.039,-0.1857],[-0.0173,0.0555,-0.148,0.143,-0.1801,-0.0823,0.0839,0.0204,0.0162,-0.0591,-0.1868,0.0584,0.0544,-0.0091,0.2661,0.1548,-0.0519,-0.1183,0.0362,-0.2325,0.2048,0.0746,0.1435,-0.1045,0.0074,0.5853,0.0405,-0.243,0.2392,0.0809,0.2624,0.0317,-0.2812,0.0166,0.154,0.0944,0.1189,0.1499,0.1908,-0.3171,-0.1166,0.0688,-0.1372,0.187,-0.0926,-0.165,-0.0482,-0.1206,-0.1703,0.0917,-0.2884,-0.0055,-0.0413,-0.1002,-0.0067,-0.1006,-0.0067,0.1962,0.0017,-0.2949,-0.0498,0.0443,-0.0841,-0.1111,-0.1698,-0.2207,-0.1438,-0.0343,0.1564,-0.3246,0.3007,-0.3975,-0.2,0.2058,-0.1082,-0.0788,0.1072,-0.0269,0.2068,-0.3256,-0.001,0.1928,-0.1671,0.0114,-0.1381,-0.1864,0.0729,-0.0172,-0.0601,0.2315,-0.0587,0.0063,-0.144,0.1378,-0.2115,-0.0107,-0.3136,-0.2499,-0.132,-0.0775,-0.2311,0.1313,-0.0971,-0.0127,0.1514,0.039,0.0861,0.033,0.3818,-0.1047,0.0997,-0.2278,-0.0022,0.0567,-0.0719,-0.1562,0.0498,-0.3697,-0.0216,-0.234,0.1296,0.0849,0.1712,-0.1607,-0.0045,-0.1779,-0.168,-0.0805,-0.0461,0.4649,-0.2122,-0.2253,-0.12,0.0727,0.043,-0.2977,-0.0164,-0.1436,-0.0862,0.1421,0.0995,-0.0428,0.3109,-0.3479,0.0234,0.1065,0.2695,-0.2711,0.3021,-0.2264,0.0549,-0.1676,-0.2722,0.202,-0.2516,-0.0734,-0.0778,-0.1804,-0.2717,-0.1477,0.0514,0.1501,0.1913,0.1194,0.021,0.0306,0.0355,0.0436,0.2124,0.3395,-0.2379,0.0224,0.0438,0.0085,-0.0078,-0.3464,0.1526,0.1886,0.1294,0.0866,-0.0092,-0.0374,0.4516,0.0887,0.1864,0.091,-0.0853,-0.0264,0.0163,-0.0912,-0.169,0.2169,0.2418,-0.2271,-0.1439,0.0481,-0.0514,-0.1829,0.048,0.1047],[-0.0051,-0.0328,-0.0734,0.1185,-0.034,0.0875,-0.0127,0.1852,-0.0495,-0.1529,-0.165,0.0497,-0.1623,0.0157,-0.0214,0.0739,-0.1653,-0.0963,-0.0237,0.2559,0.1354,0.0028,-0.014,0.0673,-0.0526,-0.358,-0.1759,-0.0655,-0.0132,-0.1188,-0.3878,0.26,-0.2006,-0.1083,-0.1211,-0.0717,0.0536,0.0565,-0.165,0.0666,-0.1152,-0.0758,-0.0461,0.1826,-0.0683,-0.1446,0.1371,-0.0881,-0.009,0.0277,-0.1867,0.1425,-0.2051,-0.1291,0.3007,-0.0117,0.0633,-0.0367,-0.2564,0.1739,-0.1839,-0.0489,-0.0563,0.0314,0.0257,-0.2301,-0.072,-0.0959,-0.1595,0.157,-0.1717,0.0625,-0.0425,-0.4259,-0.1238,-0.3505,0.0633,-0.0234,-0.0913,-0.1545,0.2012,0.3303,0.2266,-0.0919,-0.1759,-0.1315,-0.0616,-0.0232,-0.0948,0.3662,0.1163,0.0642,-0.3405,-0.2286,-0.611,0.0023,-0.0263,0.1602,0.0447,-0.0303,-0.1259,-0.0112,-0.3468,-0.2742,-0.073,0.0733,-0.0376,-0.0545,-0.0061,-0.1064,0.3114,-0.0722,0.0451,-0.0569,-0.133,-0.1792,0.1591,-0.0902,0.1334,-0.2312,0.2214,0.0212,-0.0141,0.0569,0.0223,0.0392,-0.134,-0.1839,0.1379,-0.0447,-0.1088,0.0469,0.0861,0.0751,-0.2506,-0.1452,0.1824,-0.0626,0.342,-0.138,0.1672,0.0041,-0.3458,-0.004,-0.0395,-0.0686,0.1505,0.1298,0.1738,-0.1634,-0.1671,0.0071,0.0144,0.0069,0.1816,-0.0593,-0.2637,-0.3033,-0.0945,0.2084,-0.0465,-0.3825,-0.2223,0.0343,0.1009,0.2316,-0.0317,0.0081,-0.2976,0.0138,0.0314,0.2672,0.1775,-0.0769,0.205,0.0964,0.1412,0.153,-0.0704,0.0434,-0.0396,0.0153,-0.1205,-0.0048,-0.1931,-0.1018,-0.0261,0.0463,-0.1559,0.0719,-0.5426,0.2257,0.0998,-0.104,0.0113,0.1822,-0.3152,0.2317,-0.2795,0.2289],[-0.0229,-0.175,0.0623,0.0897,0.0026,0.0794,-0.045,0.0046,0.025,-0.018,-0.0754,0.1975,-0.0923,0.0997,0.2038,0.0743,-0.0678,-0.3089,-0.0471,0.2253,-0.1868,0.0834,0.0014,-0.1311,0.0614,-0.7448,-0.045,-0.1456,0.0589,-0.0477,-0.4838,0.0693,-0.2703,-0.4174,0.092,-0.0655,0.1718,0.0527,-0.2879,-0.0779,-0.0045,-0.0647,-0.1516,0.4227,0.0009,-0.0973,0.0402,-0.058,0.0631,0.1942,0.0602,0.1514,-0.2507,-0.1241,0.0197,0.0395,0.0076,0.0319,0.1369,0.0346,-0.3639,-0.0041,-0.4853,0.0003,-0.0038,-0.296,-0.034,0.1212,0.0799,0.0796,-0.0818,-0.1217,0.2139,-0.2282,-0.0284,-0.1727,0.2461,-0.0536,0.2994,-0.1311,0.108,0.0728,-0.0472,-0.2919,-0.0798,-0.0739,0.2369,-0.0496,0.2252,0.2545,0.0821,-0.0827,-0.1026,0.0229,0.2631,-0.0819,-0.0518,0.0693,0.0688,0.16,-0.2042,-0.0548,-0.275,0.1009,0.182,-0.1227,0.2398,0.0849,0.0362,-0.0388,-0.2877,0.107,0.0756,0.0349,-0.0306,0.1024,-0.2806,-0.1106,0.1108,0.014,0.0907,0.1304,0.1429,-0.1877,0.2453,-0.2186,-0.0683,-0.1531,-0.3049,0.0866,-0.2405,0.0837,-0.3499,-0.3326,0.1541,0.0216,-0.3001,0.0332,-0.0159,-0.0138,-0.4047,-0.0248,-0.3928,0.2035,-0.1213,-0.1776,0.0019,0.0184,-0.1336,0.1703,-0.1904,0.1765,-0.0102,-0.229,-0.0102,-0.1947,0.1295,0.0701,-0.0476,-0.2136,0.1971,-0.0906,0.1908,0.0984,0.0803,0.1694,-0.1578,0.0014,0.1178,-0.0585,0.2657,-0.0492,-0.1699,-0.0865,-0.5487,0.0075,-0.0203,-0.0601,-0.1285,-0.0621,-0.2095,-0.0007,-0.7849,-0.0658,0.1735,0.0598,-0.1249,0.1064,0.116,-0.0347,-0.0962,-0.0632,0.0124,0.0988,-0.0012,0.005,0.1218,-0.0784,0.012,-0.1319],[-0.0048,0.0866,0.0766,0.0129,-0.0741,0.1084,-0.0998,0.1331,0.0849,0.0526,0.0487,-0.1411,0.2007,0.048,0.0155,-0.314,0.2672,-0.0716,-0.1332,-0.4347,0.1324,-0.0267,0.332,0.0752,0.3224,0.2514,0.0286,-0.4566,-0.001,0.2758,0.1082,0.1134,0.0887,0.1679,0.2358,-0.1724,0.1699,0.3224,0.0796,0.1536,0.1649,-0.0867,0.0857,-0.1363,-0.0472,-0.1289,-0.1785,-0.1764,-0.054,0.002,0.1173,-0.381,0.314,0.0564,0.0513,-0.0803,0.2296,-0.1219,0.0121,-0.3721,0.0918,-0.2624,0.125,-0.2865,-0.0732,-0.0092,0.0921,-0.3648,-0.0314,0.0777,0.4462,-0.3961,0.1112,-0.0201,0.1623,0.0417,0.131,0.0402,0.2089,-0.0852,0.0016,-0.1181,0.2291,-0.0416,0.081,0.2023,0.0025,0.0367,-0.0444,-0.4402,0.024,0.0274,0.1811,0.0443,-0.0222,-0.0153,0.1611,-0.001,0.1645,0.0688,-0.0955,-0.0222,0.277,-0.1741,-0.1158,-0.3134,-0.1239,0.002,0.0596,-0.081,-0.0838,-0.1196,0.2174,-0.0338,0.1878,-0.1169,0.0882,-0.3986,0.0097,-0.1358,-0.0724,-0.0795,-0.0792,0.1268,-0.0922,-0.0174,-0.0058,0.081,0.151,0.0371,-0.0673,0.0549,0.211,-0.174,-0.2256,0.0516,-0.0397,-0.1498,-0.3943,0.0754,-0.083,0.1935,-0.0969,0.0941,0.0113,-0.1092,-0.1351,0.2185,-0.023,-0.0133,0.0125,0.1813,0.2426,0.1536,0.125,0.0128,-0.0182,0.1019,-0.1759,0.0476,0.1426,-0.0099,-0.1014,-0.1477,-0.1251,-0.1517,0.0653,-0.171,-0.074,0.0552,-0.0692,-0.2528,-0.0912,-0.1265,-0.0276,-0.2041,0.2202,-0.0865,-0.1544,-0.2192,-0.1374,0.1633,0.2376,0.0352,-0.0602,-0.0675,-0.0591,-0.1125,0.2273,0.1451,0.113,0.0426,0.0839,-0.1427,-0.1523,-0.1352,-0.0497,0.0379,-0.0747,0.1323],[-0.0578,-0.1753,0.038,-0.1275,-0.0088,0.1918,0.0026,-0.0026,-0.0331,-0.0207,-0.0652,-0.2183,0.0767,0.158,-0.1271,0.0041,-0.2036,-0.0284,-0.0618,-0.0333,0.1896,-0.2036,-0.1128,-0.1269,0.0018,0.1822,-0.0067,0.0706,-0.0584,-0.0115,0.1079,-0.0792,0.3825,0.3358,0.1827,0.1979,-0.1432,-0.1704,0.1475,0.1252,-0.1952,-0.2297,-0.2733,-0.0934,-0.0194,0.2687,-0.0306,-0.0565,-0.0677,-0.2913,-0.0825,-0.1257,0.13,0.2316,-0.0307,-0.0556,-0.2668,-0.144,0.1064,0.0266,0.0901,-0.0832,-0.128,0.0525,-0.312,0.3702,-0.295,0.1413,-0.1035,-0.1584,-0.3812,0.2159,0.0611,0.0921,-0.3343,0.1277,-0.3011,-0.0135,-0.1,0.3055,-0.1494,-0.1524,-0.2132,0.0958,-0.0895,-0.0106,0.124,-0.0445,-0.2394,-0.2507,-0.068,-0.0054,-0.075,-0.0927,0.0916,0.195,0.197,-0.1831,0.0084,0.2007,0.0442,-0.1512,-0.0318,0.1932,0.2489,0.0908,-0.0972,-0.1124,-0.2926,0.011,-0.3364,0.2664,-0.4857,0.2691,-0.3048,-0.1882,-0.2578,-0.0059,-0.3805,0.0216,0.1565,0.1791,0.1,0.0395,-0.186,-0.135,0.0292,0.0349,-0.2173,-0.0239,-0.1035,0.0184,-0.2212,-0.066,-0.122,0.0772,0.037,0.0279,-0.1434,0.0206,-0.1332,0.1369,-0.1872,0.1404,-0.0735,-0.2417,-0.2197,-0.1437,-0.1794,0.1339,0.0146,0.0635,-0.2057,-0.2954,-0.2084,-0.1877,0.0706,0.0541,0.1306,-0.1737,0.3054,-0.0559,-0.0536,0.0382,-0.0835,0.0281,0.092,0.1263,0.0411,0.1101,0.0572,0.0912,-0.1206,0.1509,-0.1362,0.0386,0.0673,-0.0923,-0.0998,-0.0068,-0.2297,-0.0286,-0.4535,-0.0346,0.115,-0.1326,-0.0616,0.0086,0.0477,-0.1256,-0.0913,-0.1741,0.013,0.0804,-0.1053,-0.0553,0.1062,-0.0022,0.0775,-0.1915],[-0.0198,-0.1732,-0.2522,-0.1387,0.0278,-0.0886,-0.0132,-0.1034,0.0823,-0.1472,0.0218,-0.008,0.2116,-0.1355,-0.4046,-0.1503,-0.0105,0.2887,-0.0276,0.0576,0.2284,-0.0552,0.2649,-0.3003,0.1278,0.3149,-0.1755,0.0835,0.0521,0.1437,0.0637,-0.1202,0.1268,0.14,0.0211,0.1475,-0.0601,0.0734,0.197,0.0436,0.0225,-0.1765,-0.0712,-0.2235,0.0531,-0.1303,-0.0427,-0.1412,0.2916,0.2075,0.0349,-0.306,0.211,-0.1088,-0.1732,-0.2768,0.0965,0.1356,0.2344,-0.2159,0.0934,-0.1857,0.094,-0.5264,0.0454,0.4079,0.1424,0.0913,-0.1916,-0.417,0.1616,-0.0683,-0.0748,0.2559,-0.1428,-0.0154,-0.1531,-0.1017,0.0623,-0.0943,-0.0883,-0.1238,-0.2387,-0.3753,0.1126,-0.0086,0.0525,-0.1532,0.0677,-0.2273,-0.0146,-0.3082,0.2348,-0.0794,-0.0057,-0.2021,0.1811,-0.1477,0.2326,-0.1765,0.2557,-0.1231,-0.2634,-0.0151,0.1061,0.0626,0.0843,-0.0657,-0.1444,-0.0811,-0.3164,0.1045,0.0595,-0.4082,-0.227,-0.0247,-0.2324,0.1713,-0.3399,0.1477,-0.061,-0.1769,-0.26,-0.0796,-0.0416,0.2043,0.2708,0.1145,-0.1026,-0.4578,-0.1001,-0.0696,0.1507,0.2073,0.256,-0.1597,-0.0806,-0.4332,0.0154,-0.1148,-0.1099,-0.0831,0.069,-0.011,-0.1042,-0.1519,-0.0358,0.0841,0.1763,0.2293,-0.1911,-0.0345,0.1183,-0.2338,-0.0842,0.042,-0.0227,0.0732,-0.0004,0.0326,-0.3716,-0.141,-0.2758,-0.1139,-0.3992,-0.1257,-0.0218,-0.1183,-0.1346,-0.4073,-0.3242,0.026,0.0364,0.0597,-0.0923,0.1679,-0.216,-0.0768,-0.1573,0.205,0.2096,-0.0628,-0.122,0.2446,0.1946,-0.0024,-0.1925,0.0762,-0.1522,-0.1454,-0.1253,0.0461,0.2414,0.0669,-0.0016,0.2472,-0.134,0.2216,0.1044,-0.1215],[-0.0641,0.0837,0.2201,0.1598,0.1043,-0.1726,-0.0029,0.2002,-0.0185,0.0722,-0.0517,0.0379,0.1256,-0.2764,0.064,0.2532,-0.0922,-0.1139,-0.1036,-0.0796,0.0627,-0.2945,-0.1413,-0.1352,-0.1145,0.0056,-0.1106,-0.2424,-0.1396,-0.2827,0.0264,-0.1646,-0.2424,0.1824,-0.0845,-0.3032,-0.1699,-0.1475,-0.078,-0.1493,-0.0731,-0.027,-0.0263,0.2254,0.1381,-0.0844,0.1306,0.1761,-0.1559,-0.2176,-0.1174,0.148,0.0477,-0.0358,0.0384,0.1647,0.0314,0.2766,-0.333,-0.0365,-0.0598,0.0312,-0.0634,0.0685,-0.0107,-0.3274,-0.1948,0.1157,-0.0009,0.1251,-0.1922,-0.0795,0.249,-0.1419,0.096,-0.0505,0.2857,-0.0112,0.0646,-0.048,0.2767,0.0439,-0.0332,0.1358,-0.0602,-0.0499,-0.2011,0.02,0.0596,0.152,-0.1004,-0.0961,-0.0162,-0.1267,-0.1277,-0.2094,0.3038,0.2244,-0.0758,0.1621,-0.1555,0.2183,0.4242,0.0446,-0.1418,-0.1516,0.2685,-0.2499,-0.0242,0.2264,-0.0191,0.0603,-0.0179,-0.0221,0.1267,0.0575,0.2402,-0.1053,0.063,-0.0773,0.0402,0.1979,0.0701,-0.0771,0.0834,-0.092,0.3399,-0.0759,0.2861,0.1537,0.2506,0.0955,0.0375,-0.1309,0.3871,-0.298,-0.0258,0.061,-0.1512,-0.1732,-0.0196,-0.1186,0.1167,-0.2372,0.0289,0.0364,-0.1993,-0.0336,0.0835,-0.0477,0.0776,-0.1188,0.2912,0.1342,0.1194,0.0453,0.0073,-0.0627,0.0158,-0.0224,0.2103,0.1973,0.287,-0.2727,0.0959,-0.1249,-0.1593,-0.3153,0.1726,0.1024,0.0624,-0.0797,0.1415,0.0776,-0.1068,-0.2347,0.0467,0.0885,-0.0848,-0.2427,0.0475,-0.0531,0.3077,-0.1771,-0.1113,-0.0034,0.1568,-0.344,0.2029,-0.0969,0.1135,-0.0764,-0.2796,0.3417,0.0938,-0.2045,-0.0439,0.1277,0.01,-0.0627],[0.1325,0.1485,0.0093,-0.0636,0.1477,-0.0568,-0.1836,-0.1978,-0.0368,0.1166,0.2088,0.0089,0.0504,-0.073,-0.3181,-0.0241,0.0663,-0.2399,-0.0166,0.024,-0.0807,0.1297,-0.2181,0.1572,0.2028,-0.3494,-0.0368,0.0259,-0.0954,0.0472,-0.074,0.0379,0.198,0.0073,0.0178,0.092,-0.1879,-0.2562,-0.0803,0.1711,-0.0719,-0.1167,0.0965,-0.0784,-0.2994,0.0058,0.0064,0.0666,0.0097,-0.4313,-0.0973,-0.0237,0.1154,0.0147,0.0316,0.0976,-0.2018,-0.2811,-0.0669,-0.0365,0.0271,-0.0383,-0.2674,0.1672,-0.1227,-0.3258,0.0357,0.009,-0.1306,0.032,-0.2085,0.077,0.067,-0.3119,0.1038,-0.0396,0.1084,0.1839,0.0246,0.0496,-0.142,-0.2523,-0.0942,0.0539,0.1657,-0.0836,-0.1656,0.1637,-0.1783,-0.3618,0.0484,-0.1685,0.0351,-0.101,-0.3672,0.2053,-0.3636,-0.4923,0.0271,-0.0374,0.162,0.1645,-0.3725,0.103,0.0347,-0.1713,0.0885,0.1245,-0.0675,-0.1287,-0.0749,-0.0786,0.2153,0.302,0.0886,0.1882,-0.0412,-0.0078,0.0808,0.0623,0.194,0.0692,0.1192,-0.1657,-0.1364,0.22,-0.0894,-0.1804,0.3871,-0.2426,0.0211,-0.1069,-0.1772,0.1094,-0.2096,-0.0857,-0.0982,-0.3899,-0.0473,0.1589,0.2428,0.0127,0.0052,0.1915,-0.0759,-0.2021,-0.0872,0.1696,-0.2247,0.0615,-0.2081,0.2005,-0.1049,0.0032,-0.1905,-0.1149,-0.143,0.1418,-0.2374,-0.0495,-0.3012,-0.4106,-0.3833,0.0084,-0.1188,-0.0279,0.3027,-0.0815,-0.2115,-0.439,0.2054,-0.0791,0.1348,-0.0336,0.3588,0.0282,-0.3149,-0.5627,0.2256,0.0276,-0.0076,-0.031,-0.0383,0.0505,0.1092,-0.1069,0.0416,-0.0328,0.087,0.0637,0.0361,0.1221,-0.0439,-0.1987,-0.1415,-0.0845,0.043,-0.0369,0.0809,-0.1126],[-0.0758,0.0626,-0.0789,-0.1081,-0.0018,-0.1974,-0.2303,-0.0916,-0.2191,0.1565,0.2158,0.079,-0.2041,-0.0704,-0.2037,-0.2193,-0.0455,0.1729,0.1791,-0.0586,-0.0661,-0.153,-0.5659,0.1695,-0.2145,-0.2388,-0.1534,0.2373,-0.3159,-0.1081,-0.3772,-0.0771,-0.1091,-0.3772,-0.4926,-0.0685,0.0419,-0.4577,-0.2967,-0.0452,0.136,-0.0919,-0.0139,-0.3006,0.0348,0.1972,-0.1967,-0.0259,0.111,-0.0045,0.1959,-0.0047,0.066,0.0568,-0.3572,0.0159,-0.067,-0.1089,0.1039,0.1385,0.1469,0.2129,-0.4418,0.064,-0.0451,-0.1631,0.0723,0.0275,-0.0615,0.1008,-0.3148,0.1864,-0.1444,-0.3413,-0.0575,-0.1475,0.0942,0.0533,-0.1925,0.0499,-0.0879,-0.3071,-0.3079,-0.0359,0.1992,0.1812,-0.0573,0.0159,-0.1902,-0.5046,-0.1592,0.0954,0.1608,-0.0932,0.2626,-0.0107,-0.092,-0.2167,-0.062,0.1246,-0.1022,0.2107,-0.1574,0.0253,0.0177,-0.1785,-0.0853,0.1757,0.0326,0.1011,0.0211,-0.18,0.0834,-0.3079,0.0205,-0.0991,0.0926,0.0585,0.2362,-0.2364,-0.3041,-0.237,-0.1801,0.1626,0.1365,-0.0021,-0.0144,-0.0341,-0.1884,-0.1289,-0.0067,-0.1254,0.0363,-0.1043,-0.3316,0.0841,0.057,0.1058,-0.0557,0.2047,-0.3859,0.1337,-0.2112,-0.0045,0.0318,0.046,-0.1438,-0.0156,0.1247,0.1077,0.2393,-0.1797,-0.0522,-0.0766,0.2824,-0.1417,0.05,-0.1773,0.1179,-0.179,0.0473,-0.1007,-0.032,-0.157,-0.153,0.0074,-0.1419,-0.217,0.1185,0.3315,-0.0366,-0.0651,-0.1514,0.0529,-0.4207,0.0089,0.1798,0.14,-0.0782,-0.3394,-0.0076,0.0714,-0.0522,-0.0356,-0.3218,0.0988,-0.0058,0.0394,0.1652,-0.0683,0.2628,0.0183,-0.2299,-0.1209,-0.1236,-0.3446,-0.0145,-0.0996,-0.0121,-0.022]],"b3":[0.013,0.1169,-0.0388,-0.0762,-0.0155,-0.0026,-0.0015,0.0498,-0.0559,-0.0098],"ejemplos":[{"y":0,"px":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,11,150,253,202,31,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,37,251,251,253,107,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,21,197,251,251,253,107,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,110,190,251,251,251,253,169,109,62,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,253,251,251,251,251,253,251,251,220,51,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,182,255,253,253,253,253,234,222,253,253,253,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,63,221,253,251,251,251,147,77,62,128,251,251,105,0,0,0,0,0,0,0,0,0,0,0,0,0,0,32,231,251,253,251,220,137,10,0,0,31,230,251,243,113,5,0,0,0,0,0,0,0,0,0,0,0,0,37,251,251,253,188,20,0,0,0,0,0,109,251,253,251,35,0,0,0,0,0,0,0,0,0,0,0,0,37,251,251,201,30,0,0,0,0,0,0,31,200,253,251,35,0,0,0,0,0,0,0,0,0,0,0,0,37,253,253,0,0,0,0,0,0,0,0,32,202,255,253,164,0,0,0,0,0,0,0,0,0,0,0,0,140,251,251,0,0,0,0,0,0,0,0,109,251,253,251,35,0,0,0,0,0,0,0,0,0,0,0,0,217,251,251,0,0,0,0,0,0,21,63,231,251,253,230,30,0,0,0,0,0,0,0,0,0,0,0,0,217,251,251,0,0,0,0,0,0,144,251,251,251,221,61,0,0,0,0,0,0,0,0,0,0,0,0,0,217,251,251,0,0,0,0,0,182,221,251,251,251,180,0,0,0,0,0,0,0,0,0,0,0,0,0,0,218,253,253,73,73,228,253,253,255,253,253,253,253,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,113,251,251,253,251,251,251,251,253,251,251,251,147,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,31,230,251,253,251,251,251,251,253,230,189,35,10,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,62,142,253,251,251,251,251,253,107,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,72,174,251,173,71,72,30,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},{"y":0,"px":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,61,3,42,118,193,118,118,61,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,14,179,245,236,242,254,254,254,254,245,235,84,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,151,254,254,254,213,192,178,178,180,254,254,241,46,0,0,0,0,0,0,0,0,0,0,0,0,0,0,43,235,254,226,64,28,12,0,0,2,128,252,255,173,17,0,0,0,0,0,0,0,0,0,0,0,0,0,56,254,253,107,0,0,0,0,0,0,0,134,250,254,75,0,0,0,0,0,0,0,0,0,0,0,0,0,63,254,158,0,0,0,0,0,0,0,0,0,221,254,157,0,0,0,0,0,0,0,0,0,0,0,0,0,194,254,103,0,0,0,0,0,0,0,0,0,150,254,213,0,0,0,0,0,0,0,0,0,0,0,0,34,220,239,58,0,0,0,0,0,0,0,0,0,84,254,213,0,0,0,0,0,0,0,0,0,0,0,0,126,254,171,0,0,0,0,0,0,0,0,0,0,84,254,213,0,0,0,0,0,0,0,0,0,0,0,0,214,239,60,0,0,0,0,0,0,0,0,0,0,84,254,213,0,0,0,0,0,0,0,0,0,0,0,0,214,199,0,0,0,0,0,0,0,0,0,0,0,84,254,213,0,0,0,0,0,0,0,0,0,0,0,11,219,199,0,0,0,0,0,0,0,0,0,0,0,84,254,213,0,0,0,0,0,0,0,0,0,0,0,98,254,199,0,0,0,0,0,0,0,0,0,0,0,162,254,209,0,0,0,0,0,0,0,0,0,0,0,98,254,199,0,0,0,0,0,0,0,0,0,0,51,238,254,75,0,0,0,0,0,0,0,0,0,0,0,98,254,199,0,0,0,0,0,0,0,0,0,51,165,254,195,4,0,0,0,0,0,0,0,0,0,0,0,66,241,199,0,0,0,0,0,0,0,0,3,167,254,227,55,0,0,0,0,0,0,0,0,0,0,0,0,0,214,213,20,0,0,0,0,0,46,152,202,254,254,63,0,0,0,0,0,0,0,0,0,0,0,0,0,0,214,254,204,180,180,180,180,180,235,254,254,234,156,10,0,0,0,0,0,0,0,0,0,0,0,0,0,0,81,205,254,254,254,254,254,254,254,252,234,120,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,26,210,254,254,254,254,254,153,104,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},{"y":0,"px":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,17,66,138,255,253,169,138,23,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5,120,228,252,252,253,252,252,252,158,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,108,252,252,252,252,190,252,252,252,252,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,43,233,252,252,252,116,5,135,252,252,252,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,43,178,253,252,221,43,2,0,5,54,232,252,210,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,93,253,255,249,115,0,0,0,0,0,136,251,255,154,0,0,0,0,0,0,0,0,0,0,0,0,0,0,166,252,253,185,0,0,0,0,0,0,0,209,253,206,0,0,0,0,0,0,0,0,0,0,0,0,0,19,220,252,253,92,0,0,0,0,0,0,0,116,253,206,0,0,0,0,0,0,0,0,0,0,0,0,0,70,252,252,192,17,0,0,0,0,0,0,0,116,253,223,25,0,0,0,0,0,0,0,0,0,0,0,0,122,252,252,63,0,0,0,0,0,0,0,0,116,253,252,69,0,0,0,0,0,0,0,0,0,0,0,0,132,253,253,0,0,0,0,0,0,0,0,0,116,255,253,69,0,0,0,0,0,0,0,0,0,0,0,0,184,252,252,0,0,0,0,0,0,0,0,0,116,253,252,69,0,0,0,0,0,0,0,0,0,0,0,0,184,252,252,0,0,0,0,0,0,0,0,0,116,253,240,50,0,0,0,0,0,0,0,0,0,0,0,0,184,252,252,0,0,0,0,0,0,0,0,0,210,253,112,0,0,0,0,0,0,0,0,0,0,0,0,0,48,232,252,158,0,0,0,0,0,0,0,0,230,232,8,0,0,0,0,0,0,0,0,0,0,0,0,0,0,93,253,244,50,0,0,0,0,0,0,155,253,168,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,34,164,253,113,0,0,0,0,0,66,236,231,42,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,32,222,240,134,0,0,38,91,234,252,137,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,25,177,240,207,103,233,252,252,176,35,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,15,54,179,252,137,137,54,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},{"y":1,"px":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,38,254,109,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,87,252,82,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,135,241,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,45,244,150,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,84,254,63,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,202,223,11,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,32,254,216,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,95,254,195,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,140,254,77,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,57,237,205,8,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,124,255,165,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,171,254,81,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,24,232,215,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,120,254,159,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,151,254,142,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,228,254,66,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,61,251,254,66,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,141,254,205,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,10,215,254,121,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5,198,176,10,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},{"y":1,"px":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,77,254,107,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,19,227,254,254,9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,81,254,254,165,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,7,203,254,254,73,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,53,254,254,250,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,134,254,254,180,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,196,254,248,48,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,58,254,254,237,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,111,254,254,132,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,163,254,238,28,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,60,252,254,223,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,79,254,254,154,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,163,254,238,53,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,28,252,254,210,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,86,254,254,131,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,105,254,234,20,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,175,254,204,5,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5,211,254,196,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,158,254,160,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,26,157,107,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},{"y":1,"px":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,128,255,191,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,191,255,255,64,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,255,255,255,128,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,255,255,255,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,255,255,255,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,128,255,255,128,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,255,255,255,128,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,255,255,255,128,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,255,255,255,128,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,255,255,255,128,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,255,255,255,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,255,255,255,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,255,255,255,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,255,255,255,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,191,255,255,128,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,191,255,255,128,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,64,255,255,255,128,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,191,255,255,255,128,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,64,255,255,255,64,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,64,255,128,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},{"y":2,"px":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,116,125,171,255,255,150,93,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,169,253,253,253,253,253,253,218,30,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,169,253,253,253,213,142,176,253,253,122,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,52,250,253,210,32,12,0,6,206,253,140,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,77,251,210,25,0,0,0,122,248,253,65,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,31,18,0,0,0,0,209,253,253,65,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,117,247,253,198,10,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,76,247,253,231,63,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,128,253,253,144,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,176,246,253,159,12,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,25,234,253,233,35,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,198,253,253,141,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,78,248,253,189,12,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,19,200,253,253,141,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,134,253,253,173,12,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,248,253,253,25,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,248,253,253,43,20,20,20,20,5,0,5,20,20,37,150,150,150,147,10,0,0,0,0,0,0,0,0,0,248,253,253,253,253,253,253,253,168,143,166,253,253,253,253,253,253,253,123,0,0,0,0,0,0,0,0,0,174,253,253,253,253,253,253,253,253,253,253,253,249,247,247,169,117,117,57,0,0,0,0,0,0,0,0,0,0,118,123,123,123,166,253,253,253,155,123,123,41,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},{"y":2,"px":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,36,125,191,218,255,254,254,241,51,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,204,249,253,253,253,253,253,253,253,250,235,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,88,241,251,253,225,142,49,12,12,12,105,253,253,111,0,0,0,0,0,0,0,0,0,0,0,0,0,95,225,253,167,113,14,0,0,0,0,0,16,211,253,117,0,0,0,0,0,0,0,0,0,0,0,0,91,238,253,170,28,0,0,0,0,0,0,0,0,150,253,117,0,0,0,0,0,0,0,0,0,0,0,98,251,218,48,5,0,0,0,0,0,0,0,0,0,150,253,117,0,0,0,0,0,0,0,0,0,0,0,112,253,112,0,0,0,0,0,0,0,0,0,0,9,184,242,18,0,0,0,0,0,0,0,0,0,0,0,20,45,5,0,0,0,0,0,0,0,0,0,0,67,253,240,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,27,234,248,105,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,44,157,253,132,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,11,189,253,203,27,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,11,156,253,246,77,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,11,156,253,202,68,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,11,156,253,226,71,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,30,33,33,140,163,186,253,226,38,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,12,81,244,253,253,253,253,253,253,253,186,70,23,0,0,22,156,77,0,0,0,0,0,0,0,0,0,80,195,253,253,253,253,253,248,234,166,248,253,253,240,150,73,144,104,51,0,0,0,0,0,0,0,0,7,248,253,253,253,253,253,242,105,0,0,107,242,253,253,253,245,160,0,0,0,0,0,0,0,0,0,0,57,250,253,253,253,247,135,21,0,0,0,0,21,117,183,183,48,0,0,0,0,0,0,0,0,0,0,0,0,121,123,176,135,16,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},{"y":2,"px":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,50,170,254,59,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,36,191,245,254,254,175,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,70,242,254,235,233,254,182,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,23,184,254,243,99,27,110,254,182,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,20,205,247,98,26,0,0,110,254,149,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,40,104,20,0,0,0,0,110,254,33,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,110,234,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,32,214,149,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,134,200,16,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,20,231,144,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,146,244,72,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,16,201,132,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,164,226,31,0,0,0,0,0,0,0,11,122,205,47,0,0,0,0,0,0,0,0,0,0,0,0,0,79,255,128,0,0,0,0,0,0,15,84,216,250,144,12,0,0,0,0,0,0,0,0,0,0,0,0,7,207,228,37,0,0,0,0,20,136,238,254,228,63,0,0,0,0,0,0,0,0,0,0,0,0,0,0,135,254,66,0,0,0,53,190,254,254,197,117,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,21,231,182,0,32,101,184,249,239,179,96,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,128,254,99,128,232,254,251,185,59,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,221,254,254,254,254,192,70,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,55,254,254,188,105,72,11,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},{"y":3,"px":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,12,41,146,146,48,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,12,129,253,253,253,250,163,18,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,133,253,253,253,253,253,253,229,70,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,101,253,252,145,102,107,237,253,247,128,10,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,181,253,167,0,0,0,61,235,253,253,163,5,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,255,253,43,0,0,0,0,58,193,253,253,164,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,253,32,0,0,0,0,0,55,236,253,253,86,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,146,253,32,0,100,190,87,87,87,147,253,253,123,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,94,253,78,40,248,253,253,253,253,253,253,253,223,84,15,0,0,0,0,0,0,0,0,0,0,0,0,0,14,92,12,35,240,253,253,253,253,253,253,253,253,253,244,89,10,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,75,161,179,253,253,253,253,253,253,253,253,253,209,43,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,16,16,39,38,16,16,145,243,253,253,185,48,0,0,0,0,0,0,0,0,0,0,0,0,0,20,58,0,0,0,0,0,0,0,0,58,209,253,253,183,0,0,0,0,0,0,0,0,0,0,0,0,77,221,247,79,0,0,0,0,0,0,0,0,13,219,253,240,72,0,0,0,0,0,0,0,0,0,0,0,90,247,253,252,57,0,0,0,0,0,0,0,0,53,251,253,191,0,0,0,0,0,0,0,0,0,0,0,0,116,253,253,59,0,0,0,0,0,0,0,0,99,252,253,145,0,0,0,0,0,0,0,0,0,0,0,0,14,188,253,221,158,38,0,0,0,0,111,211,246,253,253,145,0,0,0,0,0,0,0,0,0,0,0,0,0,12,221,246,253,251,249,249,249,249,253,253,253,253,200,19,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,95,183,228,253,253,253,253,253,253,195,124,23,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,24,37,138,74,126,88,37,7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},{"y":3,"px":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,21,113,193,254,253,254,253,254,172,82,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,183,253,252,253,252,253,252,253,252,243,40,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,203,255,233,183,102,203,203,234,253,254,151,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,81,151,50,0,0,0,41,193,252,253,111,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,11,213,254,253,203,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,123,213,252,253,252,81,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,51,253,254,253,254,151,21,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,10,212,253,252,253,232,223,122,82,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,123,223,254,253,254,253,254,71,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,20,50,131,213,252,253,192,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,21,162,254,253,102,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,21,203,253,252,61,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,132,253,254,91,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,21,142,253,252,233,30,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,41,214,253,254,213,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,163,243,253,252,172,10,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,11,173,173,253,255,253,224,81,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,132,252,253,252,253,171,20,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,153,253,244,203,82,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,92,192,122,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},{"y":3,"px":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,99,254,254,254,254,217,118,41,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,178,247,253,253,253,253,253,253,140,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,64,244,253,208,177,177,55,99,253,249,92,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,19,165,179,25,0,0,0,69,253,253,109,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,69,253,249,95,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,13,153,253,143,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,57,240,253,253,89,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,6,111,247,253,253,227,41,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,31,228,253,253,253,253,253,221,88,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,35,253,253,253,253,253,253,253,252,206,48,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,28,205,205,205,82,68,68,188,253,253,226,51,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,58,167,253,253,224,36,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,176,253,253,58,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,173,253,221,37,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,104,253,253,75,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,41,227,253,253,75,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,12,63,140,226,253,253,238,57,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,41,42,153,193,253,253,253,253,217,86,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,29,158,251,253,253,253,253,253,232,102,13,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,16,116,186,253,253,253,227,116,113,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},{"y":4,"px":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,50,224,0,0,0,0,0,0,0,70,29,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,121,231,0,0,0,0,0,0,0,148,168,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,195,231,0,0,0,0,0,0,0,96,210,11,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,69,252,134,0,0,0,0,0,0,0,114,252,21,0,0,0,0,0,0,0,0,0,0,0,0,0,0,45,236,217,12,0,0,0,0,0,0,0,192,252,21,0,0,0,0,0,0,0,0,0,0,0,0,0,0,168,247,53,0,0,0,0,0,0,0,18,255,253,21,0,0,0,0,0,0,0,0,0,0,0,0,0,84,242,211,0,0,0,0,0,0,0,0,141,253,189,5,0,0,0,0,0,0,0,0,0,0,0,0,0,169,252,106,0,0,0,0,0,0,0,32,232,250,66,0,0,0,0,0,0,0,0,0,0,0,0,0,15,225,252,0,0,0,0,0,0,0,0,134,252,211,0,0,0,0,0,0,0,0,0,0,0,0,0,0,22,252,164,0,0,0,0,0,0,0,0,169,252,167,0,0,0,0,0,0,0,0,0,0,0,0,0,0,9,204,209,18,0,0,0,0,0,0,22,253,253,107,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,169,252,199,85,85,85,85,129,164,195,252,252,106,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,41,170,245,252,252,252,252,232,231,251,252,252,9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,49,84,84,84,84,0,0,161,252,252,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,127,252,252,45,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,128,253,253,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,127,252,252,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,135,252,244,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,232,236,111,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,179,66,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},{"y":4,"px":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,22,192,134,32,0,0,0,0,0,0,0,0,15,77,5,0,0,0,0,0,0,0,0,0,0,0,0,17,235,250,169,0,0,0,0,0,0,0,0,15,220,241,37,0,0,0,0,0,0,0,0,0,0,0,20,189,253,147,0,0,0,0,0,0,0,0,0,139,253,100,0,0,0,0,0,0,0,0,0,0,0,0,70,253,253,21,0,0,0,0,0,0,0,0,43,254,173,13,0,0,0,0,0,0,0,0,0,0,0,22,153,253,96,0,0,0,0,0,0,0,0,43,231,254,92,0,0,0,0,0,0,0,0,0,0,0,0,163,255,204,11,0,0,0,0,0,0,0,0,104,254,158,0,0,0,0,0,0,0,0,0,0,0,0,0,162,253,178,5,0,0,0,0,0,0,9,131,237,253,0,0,0,0,0,0,0,0,0,0,0,0,0,0,162,253,253,191,175,70,70,70,70,133,197,253,253,169,0,0,0,0,0,0,0,0,0,0,0,0,0,0,51,228,253,253,254,253,253,253,253,254,253,253,219,35,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,17,65,137,254,232,137,137,137,44,253,253,161,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,34,254,206,21,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,160,253,69,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,85,254,241,50,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,158,254,165,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,231,244,50,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,104,254,232,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,208,253,157,0,13,30,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,208,253,154,91,204,161,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,208,253,254,253,154,29,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,61,190,128,23,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},{"y":4,"px":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,168,91,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,234,126,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,51,254,126,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,38,178,31,0,0,0,0,0,51,254,81,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,94,254,83,0,0,0,0,0,87,254,54,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,160,254,56,0,0,0,0,0,189,238,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,13,227,168,2,0,0,0,0,0,194,236,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,55,254,114,0,0,0,0,0,16,235,167,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,115,254,50,0,0,0,0,0,103,254,105,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,7,221,236,75,156,180,190,252,252,253,254,114,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,15,254,254,254,252,211,179,179,179,246,254,247,94,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,8,217,239,117,22,0,0,0,0,226,254,242,197,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,14,18,0,0,0,0,0,27,243,207,46,37,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,99,254,132,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,116,254,67,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,116,254,61,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,116,254,61,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,174,255,100,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,254,83,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,115,176,10,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},{"y":5,"px":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,17,47,47,47,16,129,85,47,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,75,153,217,253,253,253,215,246,253,253,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,35,142,244,252,253,253,253,253,253,253,253,253,253,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,63,253,253,253,253,253,253,253,213,170,170,170,170,0,0,0,0,0,0,0,0,0,0,0,20,132,72,0,57,238,227,238,168,124,69,20,11,0,0,0,0,0,0,0,0,0,0,0,0,0,0,11,206,253,78,0,0,32,0,30,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,6,177,253,132,10,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,12,133,253,233,15,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,92,253,223,28,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,150,253,174,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,234,253,246,127,49,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,255,253,253,253,251,147,91,121,85,42,42,85,28,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,139,253,253,253,253,253,253,253,253,253,253,253,232,168,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,53,218,222,251,253,253,253,253,253,253,253,253,252,124,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,67,72,200,253,253,253,253,253,253,253,175,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,120,253,249,152,51,164,253,253,175,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,50,253,253,253,188,252,253,253,148,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,9,167,253,253,253,253,250,175,11,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,23,180,231,253,221,128,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,93,149,22,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},{"y":5,"px":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,51,132,214,253,254,253,203,162,41,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,102,142,203,203,253,252,253,252,151,70,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,254,253,244,203,142,102,82,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,172,252,203,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,21,223,234,30,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,122,253,50,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,123,254,91,51,51,51,10,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,21,223,253,252,253,252,253,172,82,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,21,214,253,203,162,102,102,203,223,254,253,51,10,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,61,253,171,0,0,0,0,0,20,112,192,253,212,41,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,102,203,234,51,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,20,213,232,82,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,62,203,234,112,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,20,213,252,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,153,253,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,41,233,212,0,0,0,0,0,0,0,0,0,0,0,0,113,92,0,0,0,0,0,0,0,0,0,0,31,173,244,40,0,0,0,0,0,0,0,0,0,0,0,82,253,151,0,0,0,0,0,0,21,102,102,183,233,212,81,0,0,0,0,0,0,0,0,0,0,0,0,82,255,253,234,152,153,193,173,253,254,253,254,213,142,20,0,0,0,0,0,0,0,0,0,0,0,0,0,0,71,151,151,232,253,212,192,151,131,50,50,10,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},{"y":5,"px":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,69,152,237,254,254,255,254,252,52,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,87,164,237,253,254,218,138,83,39,154,254,135,0,0,0,0,0,0,0,0,0,0,0,0,0,0,138,246,253,254,216,167,54,5,0,0,0,100,191,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,233,254,169,53,6,0,0,0,0,0,0,35,8,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,174,254,94,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,38,245,221,13,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,142,254,149,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,151,254,112,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,226,242,32,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,12,240,203,44,44,44,44,8,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,70,254,254,254,254,254,254,205,85,8,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,37,184,169,133,133,162,212,254,254,166,8,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,9,51,177,254,125,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,27,209,254,104,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,63,209,254,194,13,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,6,0,10,137,244,254,198,52,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,13,87,122,147,223,254,247,127,13,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,118,250,210,248,254,252,199,49,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,138,254,254,254,250,201,72,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,79,167,197,87,7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},{"y":6,"px":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,7,204,253,176,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,7,150,252,252,125,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,117,252,186,56,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,141,252,118,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,154,247,50,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,26,253,196,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,150,253,196,0,0,0,0,0,0,0,57,85,85,38,0,0,0,0,0,0,0,0,0,0,0,0,0,0,225,253,96,0,0,0,0,0,151,226,243,252,252,238,125,0,0,0,0,0,0,0,0,0,0,0,0,10,229,226,0,0,0,4,54,229,253,255,234,175,225,255,228,31,0,0,0,0,0,0,0,0,0,0,0,110,252,150,0,0,26,128,252,252,227,134,28,0,0,178,252,56,0,0,0,0,0,0,0,0,0,0,0,159,252,113,0,0,150,253,252,186,43,0,0,0,0,141,252,56,0,0,0,0,0,0,0,0,0,0,0,185,252,113,0,38,237,253,151,6,0,0,0,0,0,141,202,6,0,0,0,0,0,0,0,0,0,0,0,198,253,114,0,147,253,163,0,0,0,0,0,0,0,154,197,0,0,0,0,0,0,0,0,0,0,0,0,197,252,113,0,172,252,188,0,0,0,0,0,0,26,253,171,0,0,0,0,0,0,0,0,0,0,0,0,197,252,113,0,19,231,247,122,19,0,0,0,0,200,244,56,0,0,0,0,0,0,0,0,0,0,0,26,222,252,113,0,0,25,203,252,193,13,0,76,200,249,125,0,0,0,0,0,0,0,0,0,0,0,0,0,185,253,179,10,0,0,0,76,35,29,154,253,244,125,0,0,0,0,0,0,0,0,0,0,0,0,0,0,28,209,253,196,82,57,57,131,197,252,253,214,81,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,25,216,252,252,252,253,252,252,252,156,19,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,16,103,139,240,140,139,139,40,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},{"y":6,"px":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,49,180,253,244,50,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,184,252,252,232,164,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,66,234,252,136,38,56,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,19,236,252,176,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,76,252,252,56,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,139,253,173,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,22,212,252,69,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,116,253,240,50,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,157,253,206,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,230,253,102,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,231,255,180,138,180,253,255,253,222,97,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,230,253,252,252,252,252,211,252,252,252,117,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,230,253,240,183,89,69,7,69,171,252,252,85,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,135,253,153,0,0,0,0,0,13,215,252,116,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,116,253,206,0,0,0,0,0,0,155,252,116,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,106,255,211,7,0,0,0,0,49,233,253,116,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,159,252,154,9,0,0,30,197,252,252,95,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,17,227,252,154,70,81,228,252,227,130,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,50,227,252,252,253,252,185,50,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,48,179,252,190,117,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},{"y":6,"px":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,114,255,57,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,226,255,57,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,29,255,114,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,114,255,86,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,198,255,29,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,29,255,226,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,141,255,141,0,0,0,0,0,0,57,86,86,141,57,0,0,0,0,0,0,0,0,0,0,0,0,0,0,170,255,86,0,0,0,0,0,57,226,255,255,255,255,57,0,0,0,0,0,0,0,0,0,0,0,0,0,170,255,86,0,0,0,0,0,170,255,255,114,57,226,198,0,0,0,0,0,0,0,0,0,0,0,0,0,170,255,86,0,0,0,0,57,255,255,86,0,0,170,255,0,0,0,0,0,0,0,0,0,0,0,0,0,170,255,86,0,0,0,0,170,255,86,0,0,0,170,255,86,0,0,0,0,0,0,0,0,0,0,0,0,141,255,114,0,0,0,29,255,198,0,0,0,0,170,255,86,0,0,0,0,0,0,0,0,0,0,0,0,29,255,255,0,0,0,170,255,114,0,0,0,0,198,226,0,0,0,0,0,0,0,0,0,0,0,0,0,0,198,255,114,0,0,170,255,86,0,0,0,86,255,114,0,0,0,0,0,0,0,0,0,0,0,0,0,0,86,255,255,170,57,255,255,29,0,0,86,226,226,29,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,114,226,255,255,255,255,86,86,170,255,255,57,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,29,141,255,255,255,255,255,255,198,29,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,226,255,255,141,86,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,141,255,255,170,170,57,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,141,226,170,114,29,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},{"y":7,"px":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,84,185,159,151,60,36,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,222,254,254,254,254,241,198,198,198,198,198,198,198,198,170,52,0,0,0,0,0,0,0,0,0,0,0,0,67,114,72,114,163,227,254,225,254,254,254,250,229,254,254,140,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,17,66,14,67,67,67,59,21,236,254,106,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,83,253,209,18,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,22,233,255,83,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,129,254,238,44,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,59,249,254,62,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,133,254,187,5,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,9,205,248,58,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,126,254,182,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,75,251,240,57,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,19,221,254,166,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,203,254,219,35,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,38,254,254,77,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,31,224,254,115,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,133,254,254,52,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,61,242,254,254,52,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,121,254,254,219,40,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,121,254,207,18,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},{"y":7,"px":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,74,249,254,254,254,245,167,167,136,25,80,60,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,104,254,254,254,254,254,254,254,254,249,254,252,197,113,71,39,0,0,0,0,0,0,0,0,0,0,0,0,5,99,135,105,105,114,192,192,192,233,254,254,254,254,254,246,129,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,45,114,114,203,254,254,254,240,15,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,8,35,155,254,254,130,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,36,254,241,34,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,115,254,254,118,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,34,243,254,240,17,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,111,254,254,139,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,37,243,254,244,40,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,20,176,254,254,113,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,140,254,254,220,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,88,253,254,243,45,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,63,241,254,254,83,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,16,243,254,254,147,5,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,111,254,254,203,5,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,58,254,254,254,84,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,14,237,254,255,194,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,82,254,254,194,27,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,39,230,193,28,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},{"y":7,"px":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,21,0,0,0,11,92,173,253,254,253,254,253,62,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,142,0,21,102,213,252,233,151,131,131,253,252,142,0,0,0,0,0,0,0,0,0,0,0,0,0,0,163,152,152,214,233,183,102,0,0,0,0,132,253,255,50,0,0,0,0,0,0,0,0,0,0,0,0,82,243,253,252,131,30,0,0,0,0,0,0,10,212,253,131,0,0,0,0,0,0,0,0,0,0,0,0,123,203,102,20,0,0,0,0,0,0,0,0,0,203,255,151,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,162,253,151,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,102,254,151,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,102,253,151,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,163,254,91,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,203,253,50,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,203,203,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,21,223,122,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,72,253,102,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,233,252,102,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,254,233,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,41,253,151,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,123,254,50,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,21,223,233,30,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,51,253,183,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,51,252,20,0,0,0,0,0,0,0,0,0,0,0]},{"y":8,"px":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,43,47,47,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,9,108,249,253,253,208,207,207,207,149,65,13,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,9,184,254,253,253,253,254,253,253,253,254,253,213,25,0,0,0,0,0,0,0,0,0,0,0,0,0,55,203,254,254,199,127,127,60,93,84,68,151,222,254,161,0,0,0,0,0,0,0,0,0,0,0,0,0,138,253,253,199,19,0,0,0,0,0,0,0,155,253,211,0,0,0,0,0,0,0,0,0,0,0,0,0,138,253,253,17,0,0,0,0,0,0,0,74,241,253,211,0,0,0,0,0,0,0,0,0,0,0,0,0,105,253,253,102,0,0,0,0,0,0,34,229,253,253,160,0,0,0,0,0,0,0,0,0,0,0,0,0,0,149,254,229,40,0,0,0,38,153,254,254,254,180,25,0,0,0,0,0,0,0,0,0,0,0,0,0,0,19,198,254,207,9,34,72,235,253,253,224,139,13,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,17,211,253,215,240,254,253,234,128,17,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,102,229,253,253,253,228,77,13,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,70,170,254,254,254,254,254,254,119,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,26,130,230,254,253,253,185,115,64,211,253,248,21,0,0,0,0,0,0,0,0,0,0,0,0,0,0,166,232,253,253,247,162,46,13,7,91,245,253,254,56,0,0,0,0,0,0,0,0,0,0,0,0,0,0,128,253,253,253,210,93,127,159,204,253,253,253,228,15,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,134,241,254,255,254,254,254,254,254,254,228,34,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,27,115,140,206,206,206,207,206,123,15,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},{"y":8,"px":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,6,75,0,98,185,178,94,19,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,15,111,195,238,94,0,208,249,254,254,116,0,0,0,0,0,0,0,0,0,0,0,0,0,0,20,50,107,197,246,183,25,0,0,81,245,254,249,91,0,0,0,0,0,0,0,0,0,0,0,0,18,84,230,254,254,221,86,0,0,1,125,253,254,178,53,0,0,0,0,0,0,0,0,0,0,0,0,0,133,254,254,217,118,4,0,0,62,202,254,241,131,8,0,0,0,0,0,0,0,0,0,0,0,0,0,107,244,254,213,45,0,0,0,62,240,254,220,29,0,0,0,0,0,0,0,0,0,0,0,0,0,0,44,246,254,209,49,0,0,0,31,241,254,221,27,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,95,254,254,55,0,0,0,17,198,254,218,28,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,27,219,254,233,144,39,42,204,254,205,10,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,115,248,254,254,244,233,254,223,24,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,38,84,168,245,254,254,254,207,115,9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,14,236,254,230,163,237,244,211,80,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,99,254,254,99,0,0,37,225,254,130,8,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,71,254,229,12,0,0,0,2,170,254,51,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,96,254,254,18,0,0,0,0,81,254,198,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,80,254,254,18,0,0,0,0,131,254,119,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5,214,254,78,0,0,0,1,183,244,63,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,64,253,223,24,0,2,126,254,178,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,87,238,222,119,177,254,217,27,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,18,154,196,196,101,25,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},{"y":8,"px":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,50,127,209,178,134,9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,53,178,247,253,253,253,254,167,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,58,235,254,216,107,78,115,254,253,78,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,43,237,253,131,10,0,0,53,254,253,78,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,8,183,253,139,0,0,0,31,217,254,200,18,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,8,206,254,58,0,0,102,254,254,218,30,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,175,253,66,35,125,241,253,200,57,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,175,253,223,224,253,253,253,193,146,27,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,138,253,253,254,245,185,231,138,8,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,71,245,253,254,253,192,27,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,41,164,254,255,238,18,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,108,241,253,207,201,253,226,24,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,102,241,253,195,48,41,241,253,146,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,7,152,254,250,116,9,0,0,72,253,250,54,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,40,253,254,121,0,0,0,0,20,253,253,58,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,197,254,218,15,0,0,0,0,43,254,244,45,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,67,250,253,68,0,0,0,8,103,232,253,124,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,79,253,253,79,18,79,168,205,254,253,168,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,36,227,253,254,238,253,253,253,192,109,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,47,230,254,253,222,103,58,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},{"y":9,"px":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,14,149,193,5,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,91,224,253,253,19,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,28,235,254,253,253,166,18,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,144,253,254,253,253,253,238,115,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,31,241,253,208,185,253,253,253,231,24,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,79,254,193,0,8,98,219,254,255,201,18,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,86,253,80,0,0,0,182,253,254,191,12,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,175,253,155,0,0,0,234,253,254,135,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,86,253,208,40,85,166,251,237,254,236,42,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,18,238,253,254,253,253,185,36,216,253,152,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,68,240,255,254,145,8,0,134,254,223,35,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,68,158,142,12,0,0,9,175,253,161,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,88,253,226,18,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,166,253,126,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,48,245,253,38,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,115,254,172,9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,21,218,254,46,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,30,254,165,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,186,244,42,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,14,223,78,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},{"y":9,"px":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,36,56,137,201,199,95,37,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,45,152,234,254,254,254,254,254,250,211,151,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,46,153,240,254,254,227,166,133,251,200,254,229,225,104,0,0,0,0,0,0,0,0,0,0,0,0,0,153,234,254,254,187,142,8,0,0,191,40,198,246,223,253,21,0,0,0,0,0,0,0,0,0,0,8,126,253,254,233,128,11,0,0,0,0,210,43,70,254,254,254,21,0,0,0,0,0,0,0,0,0,0,72,243,254,228,54,0,0,0,0,3,32,116,225,242,254,255,162,5,0,0,0,0,0,0,0,0,0,0,75,240,254,223,109,138,178,178,169,210,251,231,254,254,254,232,38,0,0,0,0,0,0,0,0,0,0,0,9,175,244,253,255,254,254,251,254,254,254,254,254,252,171,25,0,0,0,0,0,0,0,0,0,0,0,0,0,0,16,136,195,176,146,153,200,254,254,254,254,150,16,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,162,254,254,241,99,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,118,250,254,254,90,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,100,242,254,254,211,7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,54,241,254,254,242,59,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,131,254,254,244,64,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,13,249,254,254,152,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,12,228,254,254,208,8,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,78,255,254,254,66,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,209,254,254,137,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,227,255,233,25,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,113,255,108,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},{"y":9,"px":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,49,180,253,255,253,169,36,11,76,9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5,68,228,252,252,253,252,252,160,189,253,92,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,55,252,252,227,79,69,69,100,90,236,247,67,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,43,233,252,185,50,0,0,0,26,203,252,135,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,168,253,178,37,0,0,0,0,70,252,252,63,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,155,253,242,42,0,0,0,0,5,191,253,190,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,207,252,230,0,0,0,0,5,136,252,252,64,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,207,252,230,0,0,0,32,138,252,252,227,16,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,165,252,249,207,207,207,228,253,252,252,160,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,9,179,253,252,252,252,252,75,169,252,56,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,64,116,116,74,0,149,253,215,21,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,253,252,162,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,32,253,240,50,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,157,253,164,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,43,240,253,92,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,93,253,252,84,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,114,252,209,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,207,252,116,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,165,252,116,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,93,200,63,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}]};
+const W1=D.W1, B1=D.b1, W2=D.W2, B2=D.b2, W3=D.W3, B3=D.b3;
+const relu = v => v > 0 ? v : 0;
+const NF = new Intl.NumberFormat('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const f2 = v => NF.format(Math.abs(v) < 0.005 ? 0 : v);
+const pct = v => new Intl.NumberFormat('es-AR',{style:'percent',maximumFractionDigits:1}).format(v);
+function fBig(v){
+  if (v < 1e4) return NF.format(v);
+  const e = Math.floor(Math.log10(v)); const m = v / 10**e;
+  const sup = String(e).split('').map(c => '⁰¹²³⁴⁵⁶⁷⁸⁹'[c]).join('');
+  return new Intl.NumberFormat('es-AR',{maximumFractionDigits:1}).format(m) + '·10' + sup;
+}
+
+/* ---------- la red ---------- */
+function forward(x){
+  const a1=[], p1=[], a2=[], p2=[], z1=[], z2=[];
+  for (let f=0; f<4; f++){
+    const z=new Float32Array(676);
+    for (let r=0;r<26;r++) for (let c=0;c<26;c++){
+      let s=B1[f];
+      for (let i=0;i<3;i++) for (let j=0;j<3;j++) s+=x[(r+i)*28+c+j]*W1[f][i][j];
+      z[r*26+c]=s;
+    }
+    z1.push(z); a1.push(z.map(relu)); p1.push(pool(a1[f],26));
+  }
+  for (let o=0; o<8; o++){
+    const z=new Float32Array(121);
+    for (let r=0;r<11;r++) for (let c=0;c<11;c++){
+      let s=B2[o];
+      for (let ch=0;ch<4;ch++) for (let i=0;i<3;i++) for (let j=0;j<3;j++) s+=p1[ch][(r+i)*13+c+j]*W2[o][ch][i][j];
+      z[r*11+c]=s;
+    }
+    z2.push(z); a2.push(z.map(relu)); p2.push(pool(a2[o],11));
+  }
+  const feat=new Float32Array(200);
+  for (let r=0;r<5;r++) for (let c=0;c<5;c++) for (let o=0;o<8;o++) feat[(r*5+c)*8+o]=p2[o][r*5+c];
+  const logits=[]; for (let k=0;k<10;k++){ let s=B3[k]; for (let i=0;i<200;i++) s+=W3[k][i]*feat[i]; logits.push(s); }
+  const m=Math.max(...logits); const ex=logits.map(z=>Math.exp(z-m)); const se=ex.reduce((a,b)=>a+b,0);
+  const prob=ex.map(e=>e/se);
+  return {x, z1, a1, p1, z2, a2, p2, feat, logits, prob, pred: prob.indexOf(Math.max(...prob))};
+}
+function pool(a, n){
+  const m=Math.floor(n/2), out=new Float32Array(m*m);
+  for (let r=0;r<m;r++) for (let c=0;c<m;c++)
+    out[r*m+c]=Math.max(a[(2*r)*n+2*c],a[(2*r)*n+2*c+1],a[(2*r+1)*n+2*c],a[(2*r+1)*n+2*c+1]);
+  return out;
+}
+
+/* ---------- colores ---------- */
+const probe=document.getElementById('probe');
+function tok(name){ probe.style.color=`var(${name})`; const m=getComputedStyle(probe).color.match(/[\d.]+/g); return m.slice(0,3).map(Number); }
+let C={};
+function readColors(){ C={surface:tok('--surface'),sunk:tok('--sunk'),fg:tok('--fg'),accent:tok('--accent'),pos:tok('--pos'),neg:tok('--neg'),line:tok('--line')}; }
+const mix=(a,b,t)=>[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t];
+function draw(cv, arr, n, mode, scale, limit){
+  cv.width=n; cv.height=n;
+  const ctx=cv.getContext('2d'); const img=ctx.createImageData(n,n);
+  for (let i=0;i<n*n;i++){
+    let col;
+    if (limit!==undefined && i>limit) col=C.surface;
+    else if (mode==='ink') col=mix(C.surface,C.fg,Math.min(1,arr[i]));
+    else if (mode==='act') col=mix(C.sunk,C.accent,Math.min(1,arr[i]/(scale||1)));
+    else { const t=Math.max(-1,Math.min(1,arr[i]/(scale||1))); col=t>=0?mix(C.surface,C.pos,t):mix(C.surface,C.neg,-t); }
+    img.data[i*4]=col[0]; img.data[i*4+1]=col[1]; img.data[i*4+2]=col[2]; img.data[i*4+3]=255;
+  }
+  ctx.putImageData(img,0,0);
+}
+const maxOf = arrs => Math.max(1e-6, ...arrs.map(a => Math.max(...a)));
+const absMax = arrs => Math.max(1e-6, ...arrs.map(a => Math.max(...a.map(Math.abs))));
+function cellBg(v, scale){ const t=Math.max(-1,Math.min(1,v/(scale||1))); const c=t>=0?mix(C.surface,C.pos,t*0.75):mix(C.surface,C.neg,-t*0.75); return `rgb(${c.map(Math.round).join(',')})`; }
+
+/* ---------- estado ---------- */
+const S = { ex: 21, R: null, layer: 'c1', ch: 0, pos: [12,12], slide: null, poolPos: [6,6], cls: null, drawn: false };
+const flat1 = W1.map(f => f.flat());
+const flat2 = W2.map(f => f.flat(2));
+const sc1 = absMax(flat1), sc2 = absMax(flat2), sc3 = absMax(W3);
+
+function setInput(x){ S.R = forward(x); if (S.cls===null || !S.keepCls) S.cls = S.R.pred; renderAll(); }
+
+/* ---------- paso 1 ---------- */
+const picker=document.getElementById('picker');
+D.ejemplos.forEach((e,idx)=>{
+  const b=document.createElement('button'); b.type='button'; b.setAttribute('aria-label',`Dígito ${e.y}, ejemplo ${idx%3+1}`);
+  const cv=document.createElement('canvas'); b.appendChild(cv); picker.appendChild(b);
+  e.x = Float32Array.from(e.px, v => v/255); e.btn=b; e.cv=cv; e.pred = forward(e.x).pred;
+  if (e.pred!==e.y) b.classList.add('err');
+  b.addEventListener('click',()=>{ S.ex=idx; S.drawn=false; S.keepCls=false; setInput(e.x); });
+});
+// orden: 0,1,…,9 en tres filas
+picker.replaceChildren(...[0,1,2].flatMap(k => D.ejemplos.filter((e,i)=>i%3===k).map(e=>e.btn)));
+
+function mkMaps(id, n, layer){
+  const box=document.getElementById(id); box.replaceChildren();
+  for (let k=0;k<n;k++){
+    const b=document.createElement('button'); b.className='map'; b.type='button';
+    b.setAttribute('aria-label', `${layer.startsWith('c')?'Mapa':'Mapa reducido'} ${k+1}`);
+    const cv=document.createElement('canvas'); b.appendChild(cv); box.appendChild(b);
+    b.addEventListener('click',()=>{ S.layer = (layer==='p1'||layer==='c1') ? 'c1' : 'c2'; S.ch=k; stopSlide(); clampPos(); renderInside(); renderPool(); renderOverview(); document.getElementById('adentro').scrollIntoView({behavior: matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'}); });
+  }
+}
+mkMaps('ovC1',4,'c1'); mkMaps('ovP1',4,'p1'); mkMaps('ovC2',8,'c2'); mkMaps('ovP2',8,'p2');
+
+function bars(el, prob, pred){
+  el.replaceChildren(...prob.map((p,k)=>{
+    const d=document.createElement('div'); d.className='bar'+(k===pred?' win':'');
+    d.innerHTML=`<b>${k}</b><i style="width:${Math.max(1,p*100)}%"></i><span>${pct(p)}</span>`; return d; }));
+}
+function verdict(el, R, truth){
+  const p=R.prob[R.pred];
+  if (truth===undefined) { el.textContent=`La red dice: ${R.pred} (${pct(p)})`; el.className='verdict'; return; }
+  const ok=R.pred===truth;
+  el.textContent= ok ? `La red dice: ${R.pred} (${pct(p)})` : `La red dice ${R.pred}, pero es un ${truth}`;
+  el.className='verdict'+(ok?'':' badv');
+}
+function renderOverview(){
+  const R=S.R;
+  draw(document.getElementById('ovIn'), R.x, 28, 'ink');
+  const m1=maxOf(R.a1), mp1=maxOf(R.p1), m2=maxOf(R.a2), mp2=maxOf(R.p2);
+  document.querySelectorAll('#ovC1 canvas').forEach((cv,k)=>draw(cv,R.a1[k],26,'act',m1));
+  document.querySelectorAll('#ovP1 canvas').forEach((cv,k)=>draw(cv,R.p1[k],13,'act',mp1));
+  document.querySelectorAll('#ovC2 canvas').forEach((cv,k)=>draw(cv,R.a2[k],11,'act',m2));
+  document.querySelectorAll('#ovP2 canvas').forEach((cv,k)=>draw(cv,R.p2[k],5,'act',mp2));
+  ['ovC1','ovP1'].forEach(id=>document.querySelectorAll(`#${id} .map`).forEach((b,k)=>b.classList.toggle('sel',S.layer==='c1'&&k===S.ch)));
+  ['ovC2','ovP2'].forEach(id=>document.querySelectorAll(`#${id} .map`).forEach((b,k)=>b.classList.toggle('sel',S.layer==='c2'&&k===S.ch)));
+  bars(document.getElementById('ovBars'), R.prob, R.pred);
+  verdict(document.getElementById('ovVerdict'), R, S.drawn ? undefined : D.ejemplos[S.ex].y);
+  D.ejemplos.forEach((e,i)=>{ draw(e.cv,e.x,28,'ink'); e.btn.classList.toggle('sel', !S.drawn && i===S.ex); e.btn.setAttribute('aria-pressed', String(!S.drawn && i===S.ex)); });
+}
+
+/* ---------- paso 2 ---------- */
+const chips=document.getElementById('chips');
+function mkChips(){
+  chips.replaceChildren();
+  const g1=document.createElement('span'); g1.className='grp'; g1.textContent='Capa 1'; chips.appendChild(g1);
+  for (let k=0;k<4;k++){ const b=document.createElement('button'); b.type='button'; b.className='chip'; b.dataset.l='c1'; b.dataset.k=k;
+    const cv=document.createElement('canvas'); b.append(cv, `Filtro ${k+1}`); chips.appendChild(b); }
+  const sep=document.createElement('span'); sep.className='sep'; chips.appendChild(sep);
+  const g2=document.createElement('span'); g2.className='grp'; g2.textContent='Capa 2'; chips.appendChild(g2);
+  for (let k=0;k<8;k++){ const b=document.createElement('button'); b.type='button'; b.className='chip'; b.dataset.l='c2'; b.dataset.k=k; b.textContent=`${k+1}`; b.setAttribute('aria-label',`Capa 2, filtro ${k+1}`); chips.appendChild(b); }
+  chips.addEventListener('click',ev=>{ const b=ev.target.closest('.chip'); if(!b) return; S.layer=b.dataset.l; S.ch=+b.dataset.k; stopSlide(); clampPos(); renderInside(); renderPool(); renderOverview(); });
+}
+mkChips();
+const nOut = () => S.layer==='c1' ? 26 : 11;
+const nIn = () => S.layer==='c1' ? 28 : 13;
+function clampPos(){ const n=nOut(); S.pos=[Math.min(n-1,S.pos[0]),Math.min(n-1,S.pos[1])]; }
+function place(el, n, r, c, h, w){ el.style.left=`${c/n*100}%`; el.style.top=`${r/n*100}%`; el.style.width=`${w/n*100}%`; el.style.height=`${h/n*100}%`; el.hidden=false; }
+
+function renderInside(){
+  const R=S.R, L=S.layer, k=S.ch, n=nOut(), ni=nIn();
+  chips.querySelectorAll('.chip').forEach(b=>{ const on=b.dataset.l===L && +b.dataset.k===k; b.classList.toggle('sel',on); b.setAttribute('aria-pressed',String(on)); });
+  chips.querySelectorAll('.chip canvas').forEach((cv,i)=>draw(cv,flat1[i],3,'div',sc1));
+  const [r,c]=S.pos;
+  // entrada
+  const holder=document.getElementById('inHolder');
+  if (L==='c1'){
+    document.getElementById('inTitle').textContent='Entrada del filtro: la imagen (28×28)';
+    if (!holder.querySelector('#inImg')) holder.innerHTML='<div class="mapbox"><canvas id="inImg"></canvas><div class="hl" id="inHl"></div></div>';
+    draw(document.getElementById('inImg'), R.x, 28, 'ink');
+    place(document.getElementById('inHl'), 28, r, c, 3, 3);
+  } else {
+    document.getElementById('inTitle').textContent='Entrada del filtro: los 4 mapas del pooling 1 (13×13)';
+    if (!holder.querySelector('.quad')) holder.innerHTML='<div class="quad">'+[0,1,2,3].map(i=>`<figure><div class="mapbox"><canvas id="inQ${i}"></canvas><div class="hl" id="inQh${i}"></div></div><figcaption>mapa ${i+1}</figcaption></figure>`).join('')+'</div>';
+    const mp=maxOf(R.p1);
+    for (let i=0;i<4;i++){ draw(document.getElementById('inQ'+i), R.p1[i], 13, 'act', mp); place(document.getElementById('inQh'+i), 13, r, c, 3, 3); }
+  }
+  // salida
+  const act = L==='c1' ? R.a1[k] : R.a2[k];
+  const sc = L==='c1' ? maxOf(R.a1) : maxOf(R.a2);
+  document.getElementById('outTitle').textContent = `Mapa de salida: capa ${L==='c1'?1:2}, filtro ${k+1} (${n}×${n})`;
+  const lim = S.slide===null ? undefined : S.slide;
+  draw(document.getElementById('outMap'), act, n, 'act', sc, lim);
+  place(document.getElementById('outHl'), n, r, c, 1, 1);
+  document.getElementById('outPos').textContent = `fila ${r+1}, columna ${c+1} de ${n}×${n}`;
+  renderChain();
+}
+function g3(vals, scale, cls){ return `<div class="g3 ${cls||''}">`+vals.map(v=>`<span style="background:${cellBg(v,scale)}">${f2(v)}</span>`).join('')+'</div>'; }
+function node(title, inner, res){ return `<div class="node${res?' res':''}"><span class="nt">${title}</span>${inner}</div>`; }
+const op = s => `<span class="op" aria-hidden="true">${s}</span>`;
+function renderChain(){
+  const R=S.R, L=S.layer, k=S.ch, [r,c]=S.pos, el=document.getElementById('chain');
+  if (L==='c1'){
+    const patch=[], w=flat1[k], prod=[];
+    for (let i=0;i<3;i++) for (let j=0;j<3;j++) patch.push(R.x[(r+i)*28+c+j]);
+    patch.forEach((v,i)=>prod.push(v*w[i]));
+    const s=prod.reduce((a,b)=>a+b,0), z=s+B1[k], a=relu(z);
+    const sp=Math.max(...prod.map(Math.abs),1e-6);
+    el.innerHTML='<div class="chain">'+
+      node('Parche', g3(patch,1))+op('⊙')+node(`Filtro ${k+1}`, g3(w,sc1))+op('=')+node('Productos', g3(prod,sp))+op('→')+
+      node('Σ', `<span class="nv">${f2(s)}</span>`)+op('→')+node(`+ b (${f2(B1[k])})`, `<span class="nv">${f2(z)}</span>`)+op('→')+
+      node('ReLU', `<span class="nv">${f2(a)}</span>`, true)+'</div>';
+  } else {
+    const mp=maxOf(R.p1); let tot=0; let rows='';
+    for (let ch=0;ch<4;ch++){
+      const patch=[], w=W2[k][ch].flat(); for (let i=0;i<3;i++) for (let j=0;j<3;j++) patch.push(R.p1[ch][(r+i)*13+c+j]);
+      const s=patch.reduce((acc,v,i)=>acc+v*w[i],0); tot+=s;
+      rows+=`<div class="chrow"><span class="tag">mapa ${ch+1}</span>${node('Parche',g3(patch.map(v=>v),mp,'sm'))}${op('⊙')}${node('Pesos',g3(w,sc2,'sm'))}${op('→')}${node('Σ',`<span class="nv">${f2(s)}</span>`)}</div>`;
+    }
+    const z=tot+B2[k], a=relu(z);
+    el.innerHTML=`<div class="chrows">${rows}</div><div class="chain" style="margin-top:12px">`+
+      node('Σ de los 4 mapas', `<span class="nv">${f2(tot)}</span>`)+op('→')+node(`+ b (${f2(B2[k])})`, `<span class="nv">${f2(z)}</span>`)+op('→')+node('ReLU', `<span class="nv">${f2(a)}</span>`, true)+'</div>';
+  }
+}
+function posFromEvent(cv, ev, n){
+  const b=cv.getBoundingClientRect();
+  const c=Math.floor((ev.clientX-b.left)/b.width*n), r=Math.floor((ev.clientY-b.top)/b.height*n);
+  return [Math.max(0,Math.min(n-1,r)), Math.max(0,Math.min(n-1,c))];
+}
+const outMap=document.getElementById('outMap');
+outMap.addEventListener('pointermove',ev=>{ if (S.slide!==null) return; S.pos=posFromEvent(outMap,ev,nOut()); renderInside(); });
+outMap.addEventListener('pointerdown',ev=>{ stopSlide(); S.pos=posFromEvent(outMap,ev,nOut()); renderInside(); });
+outMap.addEventListener('keydown',ev=>{
+  const d={ArrowUp:[-1,0],ArrowDown:[1,0],ArrowLeft:[0,-1],ArrowRight:[0,1]}[ev.key]; if(!d) return; ev.preventDefault(); stopSlide();
+  const n=nOut(); S.pos=[Math.max(0,Math.min(n-1,S.pos[0]+d[0])),Math.max(0,Math.min(n-1,S.pos[1]+d[1]))]; renderInside(); });
+let timer=null;
+function stopSlide(){ if (timer) clearInterval(timer); timer=null; S.slide=null; }
+document.getElementById('btnSlide').addEventListener('click',()=>{
+  stopSlide(); const n=nOut(); S.slide=0; S.pos=[0,0];
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches){ S.slide=null; S.pos=[n-1,n-1]; renderInside(); return; }
+  const dt = n===26 ? 18 : 90;
+  timer=setInterval(()=>{ const i=S.slide; S.pos=[Math.floor(i/n), i%n]; renderInside(); S.slide++; if (S.slide>=n*n){ stopSlide(); renderInside(); } }, dt);
+});
+document.getElementById('btnFull').addEventListener('click',()=>{ stopSlide(); renderInside(); });
+
+/* ---------- paso 3 ---------- */
+function renderPool(){
+  const R=S.R, L=S.layer, k=S.ch;
+  const a = L==='c1' ? R.a1[k] : R.a2[k], p = L==='c1' ? R.p1[k] : R.p2[k];
+  const n = L==='c1' ? 26 : 11, m = L==='c1' ? 13 : 5, sc = L==='c1' ? maxOf(R.a1) : maxOf(R.a2);
+  S.poolPos=[Math.min(m-1,S.poolPos[0]),Math.min(m-1,S.poolPos[1])];
+  const [r,c]=S.poolPos;
+  document.getElementById('poolInTitle').textContent=`Capa ${L==='c1'?1:2}, filtro ${k+1}, después de ReLU (${n}×${n})`;
+  document.getElementById('poolOutTitle').textContent=`Después del pooling (${m}×${m})`;
+  draw(document.getElementById('poolIn'), a, n, 'act', sc);
+  draw(document.getElementById('poolOut'), p, m, 'act', sc);
+  place(document.getElementById('poolHl'), n, 2*r, 2*c, 2, 2);
+  place(document.getElementById('poolOutHl'), m, r, c, 1, 1);
+  const four=[a[(2*r)*n+2*c],a[(2*r)*n+2*c+1],a[(2*r+1)*n+2*c],a[(2*r+1)*n+2*c+1]]; const mx=Math.max(...four);
+  let marked=false;
+  document.getElementById('pool4').innerHTML=four.map(v=>{ const isM=!marked && v===mx; if(isM) marked=true; return `<span class="${isM?'max':''}">${f2(v)}</span>`; }).join('');
+  document.getElementById('poolMax').textContent=f2(mx);
+}
+const poolOut=document.getElementById('poolOut');
+const mPool = () => S.layer==='c1' ? 13 : 5;
+poolOut.addEventListener('pointermove',ev=>{ S.poolPos=posFromEvent(poolOut,ev,mPool()); renderPool(); });
+poolOut.addEventListener('pointerdown',ev=>{ S.poolPos=posFromEvent(poolOut,ev,mPool()); renderPool(); });
+poolOut.addEventListener('keydown',ev=>{
+  const d={ArrowUp:[-1,0],ArrowDown:[1,0],ArrowLeft:[0,-1],ArrowRight:[0,1]}[ev.key]; if(!d) return; ev.preventDefault();
+  const m=mPool(); S.poolPos=[Math.max(0,Math.min(m-1,S.poolPos[0]+d[0])),Math.max(0,Math.min(m-1,S.poolPos[1]+d[1]))]; renderPool(); });
+
+function renderSoftmax(){
+  const R=S.R, mz=Math.max(...R.logits), ex=R.logits.map(z=>Math.exp(z)), se=ex.reduce((a,b)=>a+b,0);
+  const body=document.getElementById('smBody'); body.replaceChildren();
+  R.logits.forEach((z,k)=>{
+    const tr=document.createElement('tr'); tr.className='cls'+(k===S.cls?' sel':''); tr.tabIndex=0;
+    tr.setAttribute('aria-label',`Ver la neurona del dígito ${k}`);
+    tr.innerHTML=`<td><b>${k}</b></td><td>${f2(z)}</td><td>${fBig(ex[k])}</td><td>${pct(R.prob[k])}</td><td class="pbar"><i style="width:${Math.max(.5,R.prob[k]*100)}%"></i></td>`;
+    const pick=()=>{ S.cls=k; S.keepCls=true; renderSoftmax(); };
+    tr.addEventListener('click',pick); tr.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); pick(); } });
+    body.appendChild(tr);
+  });
+  document.getElementById('smSum').textContent=`Σ eᶻ = ${fBig(se)}. Cada probabilidad es su eᶻ dividido por esa suma; el logit más alto (${f2(mz)}, el del ${R.pred}) se lleva casi todo.`;
+  const k=S.cls;
+  document.getElementById('wTitle').textContent=`Pesos de la neurona del ${k}`;
+  document.getElementById('cTitle').textContent=`Aporte al logit del ${k}: rasgo × peso`;
+  const wm=document.getElementById('wMaps'), cm=document.getElementById('cMaps');
+  if (!wm.children.length){
+    for (let o=0;o<8;o++){ wm.insertAdjacentHTML('beforeend',`<figure><canvas></canvas><figcaption>mapa ${o+1}</figcaption></figure>`); cm.insertAdjacentHTML('beforeend',`<figure><canvas></canvas><figcaption></figcaption></figure>`); }
+  }
+  const contribs=[]; let tot=0;
+  for (let o=0;o<8;o++){
+    const w=new Float32Array(25), cc=new Float32Array(25);
+    for (let i=0;i<25;i++){ w[i]=W3[k][i*8+o]; cc[i]=w[i]*R.feat[i*8+o]; }
+    contribs.push({w,cc,s:cc.reduce((a,b)=>a+b,0)}); tot+=contribs[o].s;
+  }
+  const scC=absMax(contribs.map(x=>x.cc));
+  contribs.forEach((x,o)=>{
+    draw(wm.children[o].querySelector('canvas'), x.w, 5, 'div', sc3);
+    draw(cm.children[o].querySelector('canvas'), x.cc, 5, 'div', scC);
+    cm.children[o].querySelector('figcaption').textContent=f2(x.s);
+  });
+  document.getElementById('cFormula').textContent=`Σ de los 8 aportes = ${f2(tot)}   + b (${f2(B3[k])})   = logit ${f2(tot+B3[k])}`;
+}
+
+/* ---------- paso 4 ---------- */
+const pad=document.getElementById('pad'), padIn=document.getElementById('padIn');
+let buf=new Float32Array(784), last=null, drawing=false;
+function stamp(x,y){
+  for (let r=Math.max(0,Math.floor(y-2));r<=Math.min(27,Math.ceil(y+2));r++)
+    for (let c=Math.max(0,Math.floor(x-2));c<=Math.min(27,Math.ceil(x+2));c++){
+      const d=Math.hypot(c+.5-x,r+.5-y); const v=Math.max(0,Math.min(1,(1.9-d)/1.0));
+      if (v>buf[r*28+c]) buf[r*28+c]=v;
+    }
+}
+function padXY(ev){ const b=pad.getBoundingClientRect(); return [(ev.clientX-b.left)/b.width*28,(ev.clientY-b.top)/b.height*28]; }
+function stroke(ev){
+  const p=padXY(ev);
+  if (last){ const dist=Math.hypot(p[0]-last[0],p[1]-last[1]); const steps=Math.max(1,Math.ceil(dist/0.3)); for(let s=1;s<=steps;s++) stamp(last[0]+(p[0]-last[0])*s/steps,last[1]+(p[1]-last[1])*s/steps); }
+  else stamp(p[0],p[1]);
+  last=p; drawPad(); feedDrawing();
+}
+pad.addEventListener('pointerdown',ev=>{ drawing=true; last=null; pad.setPointerCapture(ev.pointerId); stroke(ev); });
+pad.addEventListener('pointermove',ev=>{ if(drawing) stroke(ev); });
+['pointerup','pointercancel'].forEach(t=>pad.addEventListener(t,()=>{ drawing=false; last=null; }));
+document.getElementById('btnClear').addEventListener('click',()=>{ buf=new Float32Array(784); drawPad(); feedDrawing(); });
+function drawPad(){ draw(pad, buf, 28, 'ink'); }
+function prep(b){
+  let x0=28,x1=-1,y0=28,y1=-1;
+  for (let r=0;r<28;r++) for (let c=0;c<28;c++) if (b[r*28+c]>0.1){ x0=Math.min(x0,c); x1=Math.max(x1,c); y0=Math.min(y0,r); y1=Math.max(y1,r); }
+  if (x1<0) return null;
+  const w=x1-x0+1, h=y1-y0+1, s=20/Math.max(w,h), ox=14-w*s/2, oy=14-h*s/2;
+  const smp=(xx,yy)=>{ const xi=Math.floor(xx), yi=Math.floor(yy), fx=xx-xi, fy=yy-yi;
+    const g=(c,r)=> (c<0||r<0||c>27||r>27)?0:b[r*28+c];
+    return g(xi,yi)*(1-fx)*(1-fy)+g(xi+1,yi)*fx*(1-fy)+g(xi,yi+1)*(1-fx)*fy+g(xi+1,yi+1)*fx*fy; };
+  const t=new Float32Array(784);
+  for (let r=0;r<28;r++) for (let c=0;c<28;c++){
+    // promedio de 2×2 submuestras para que el achique no pierda trazos finos
+    let acc=0; for (const [dx,dy] of [[.25,.25],[.75,.25],[.25,.75],[.75,.75]]) acc+=smp((c+dx-ox)/s+x0-.5,(r+dy-oy)/s+y0-.5);
+    t[r*28+c]=Math.min(1,acc/4);
+  }
+  let m=0,cx=0,cy=0; for (let r=0;r<28;r++) for (let c=0;c<28;c++){ const v=t[r*28+c]; m+=v; cx+=v*(c+.5); cy+=v*(r+.5); }
+  const dx=Math.round(14-cx/m), dy=Math.round(14-cy/m), o=new Float32Array(784);
+  for (let r=0;r<28;r++) for (let c=0;c<28;c++){ const rr=r-dy, cc=c-dx; if(rr>=0&&rr<28&&cc>=0&&cc<28) o[r*28+c]=t[rr*28+cc]; }
+  return o;
+}
+function feedDrawing(){
+  const x=prep(buf);
+  const pb=document.getElementById('padBars'), pv=document.getElementById('padVerdict');
+  if (!x){ if (S.drawn){ S.drawn=false; setInput(D.ejemplos[S.ex].x); } draw(padIn,new Float32Array(784),28,'ink'); pb.replaceChildren(); pv.textContent='Dibujá un dígito del 0 al 9.'; pv.className='verdict'; return; }
+  draw(padIn,x,28,'ink'); S.drawn=true; S.keepCls=false; setInput(x);
+}
+function renderPad(){
+  if (!S.drawn){ drawPad(); return; }
+  drawPad(); const x=prep(buf); if(x) draw(padIn,x,28,'ink');
+  bars(document.getElementById('padBars'), S.R.prob, S.R.pred); verdict(document.getElementById('padVerdict'), S.R);
+}
+
+/* ---------- todo ---------- */
+function renderAll(){ renderOverview(); renderInside(); renderPool(); renderSoftmax(); renderPad(); }
+document.getElementById('accTxt').textContent = pct(D.test_acc);
+readColors();
+draw(padIn,new Float32Array(784),28,'ink');
+document.getElementById('padVerdict').textContent='Dibujá un dígito del 0 al 9.';
+S.R = forward(D.ejemplos[S.ex].x);
+{ // arrancar en el filtro de la capa 1 que más responde, en su punto más alto
+  const sums=S.R.a1.map(a=>a.reduce((x,y)=>x+y,0)); S.ch=sums.indexOf(Math.max(...sums));
+  const a=S.R.a1[S.ch]; const i=a.indexOf(Math.max(...a)); S.pos=[Math.floor(i/26), i%26];
+  S.poolPos=[Math.floor(S.pos[0]/2), Math.floor(S.pos[1]/2)];
+}
+setInput(D.ejemplos[S.ex].x);
+const rerender=()=>{ readColors(); renderAll(); if(!S.drawn) draw(padIn,new Float32Array(784),28,'ink'); };
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',rerender);
+new MutationObserver(rerender).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+</script>
+
+</body>
+</html>
