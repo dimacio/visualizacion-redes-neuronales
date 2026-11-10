@@ -1,6 +1,6 @@
 # Herramientas de visualización para redes neuronales
 
-Páginas interactivas para el curso de Introducción a la IA. Son HTML y JavaScript estáticos, sin compilación, publicados con GitHub Pages.
+Páginas interactivas para mirar por dentro redes neuronales chicas, con modelos de verdad que corren en el navegador. Son HTML y JavaScript estáticos, sin compilación, publicados con GitHub Pages.
 
 | Carpeta | Página | Qué muestra |
 |---|---|---|
